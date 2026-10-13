@@ -42,8 +42,38 @@ if ($LASTEXITCODE -ne 0) { throw 'Build failed; no plugin was installed.' }
 $built = Join-Path $PSScriptRoot 'bin\Release\netstandard2.1\StonewardsPartyHUD.dll'
 $target = Join-Path $installRoot 'BepInEx\plugins\StonewardsPartyHUD'
 New-Item -ItemType Directory -Force -Path $target | Out-Null
-Copy-Item -LiteralPath $built -Destination (Join-Path $target 'StonewardsPartyHUD.dll') -Force
-Write-Host "Installed Party HUD to $target" -ForegroundColor Green
+$installedDll = Join-Path $target 'StonewardsPartyHUD.dll'
+Copy-Item -LiteralPath $built -Destination $installedDll -Force
+
+$builtHash = (Get-FileHash -LiteralPath $built -Algorithm SHA256).Hash
+$installedHash = (Get-FileHash -LiteralPath $installedDll -Algorithm SHA256).Hash
+if ($builtHash -ne $installedHash) {
+    throw 'The installed plugin hash does not match the DLL that was just built.'
+}
+
+$versionSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'src\PartyHudPlugin.cs') -Raw
+$pluginVersion = 'unknown'
+if ($versionSource -match 'PluginVersion\s*=\s*"([^"]+)"') {
+    $pluginVersion = $Matches[1]
+}
+Write-Host "Built Party HUD source version: $pluginVersion"
+Write-Host "Installed DLL: $installedDll" -ForegroundColor Green
+Write-Host "SHA256: $installedHash"
+
+if ($ProfileDir) {
+    $pluginRoot = Join-Path $installRoot 'BepInEx\plugins'
+    $otherCopies = @(Get-ChildItem -LiteralPath $pluginRoot -Filter 'StonewardsPartyHUD.dll' -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -ne $installedDll })
+    if ($otherCopies.Count -gt 0) {
+        Write-Warning ('Other copies of StonewardsPartyHUD.dll in this profile: ' +
+            (($otherCopies | ForEach-Object { $_.FullName }) -join '; '))
+    }
+    $steamCopy = Join-Path $GameDir 'BepInEx\plugins\StonewardsPartyHUD\StonewardsPartyHUD.dll'
+    if (Test-Path -LiteralPath $steamCopy -PathType Leaf) {
+        Write-Warning "A manual Party HUD installation still exists in Steam: $steamCopy"
+    }
+    Write-Host 'Expected runtime log line: Party HUD v0.1.1 initialized. (in the ACTIVE profile BepInEx/LogOutput.log)'
+}
 if ($ProfileDir) {
     Write-Host 'Launch with Start modded using this profile. Disable the public PartyHUD package in this profile to prevent duplicate plugins.'
 } else {
