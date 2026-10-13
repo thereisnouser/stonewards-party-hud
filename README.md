@@ -2,7 +2,7 @@
 
 A lightweight, client-side party overlay for **Stonewards**. See connected players' names, classes, current/max health, and downed state without searching the battlefield. Hunter companions appear as an indented health row under their owner when available. Remote teammate outlines and floating teammate nicknames are optional, with through-wall visibility configurable. The HUD uses the game's own class sprites when available, falling back to short class labels.
 
-> **Status:** Public alpha (v0.1.0). Tested locally in Stonewards v0.2.3 multiplayer; feedback and bug reports are welcome.
+> **Status:** Public alpha v0.1.0; v0.1.1 improvements under test. Tested locally in Stonewards v0.2.3 multiplayer; feedback and bug reports are welcome.
 
 **[Download on Thunderstore](https://thunderstore.io/c/stonewards/p/thereisnouser/PartyHUD/)**
 
@@ -16,7 +16,7 @@ The package declares BepInExPack as a required dependency. **No .NET SDK, termin
 
 ## Display
 
-The panel defaults to the upper-left corner, below the game's player-name list, and hides while the Shop, Character Selection, Missions, or Upgrade Offers menu is open. Position (`Appearance.Anchor`, `TopOffset`, `BottomOffset`, `AvoidNativePlayerNames`), size (`Scale`, `ReadabilityScale`) and Hunter companion display can be configured in `BepInEx/config/community.stonewards.partyhud.cfg`.
+The panel defaults to the upper-left corner, below the game's player-name list, and hides while the Shop, Character Selection, Missions, or Upgrade Offers menu is open (Inventory hiding is being tested for v0.1.1). Position (`Appearance.Anchor`, `TopOffset`, `BottomOffset`, `AvoidNativePlayerNames`), size (`Scale`, `ReadabilityScale`, `AutoScaleToResolution`) and Hunter companion display can be configured in `BepInEx/config/community.stonewards.partyhud.cfg`.
 
 ## Development
 
