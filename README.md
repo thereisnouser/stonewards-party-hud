@@ -1,19 +1,25 @@
 # Stonewards Party HUD
 
-A lightweight, **client-side** party overlay for **Stonewards**, styled to fit the game's pixel-art UI. Keep track of your team without searching the battlefield.
+A lightweight, **client-side** party HUD for **Stonewards**, styled to fit the game's pixel-art UI. See your team's status at a glance without searching the battlefield.
+
+## Preview
+
+![Illustration of the Party HUD with fictional player names](https://raw.githubusercontent.com/thereisnouser/stonewards-party-hud/main/packaging/icon.png)
+
+*Illustrative preview — player names are fictional.*
 
 ## Features
 
-- **Party overview:** player names, class icons, HP and downed status.
-- **Teammate tracking:** optional outlines and floating names, including through walls.
-- **Extra health bars:** Hunter's bear companion and defensive walls.
-- **Flexible display:** automatic scaling and configurable position.
+- **Party status:** player names, class icons, current/max HP and downed state.
+- **Teammate tracking:** optional outlines and floating nicknames, including through walls.
+- **Extra health bars:** Hunter's bear companion and defensive wall health.
+- **Fits your screen:** automatic scaling and configurable panel position.
 
-Only **you** need to install the mod. Other players can join without it.
+**Client-side only:** teammates do not need to install the mod.
 
 ## Installation
 
-Install [PartyHUD on Thunderstore](https://thunderstore.io/c/stonewards/p/thereisnouser/PartyHUD/) with [r2modman](https://thunderstore.io/c/stonewards/p/ebkr/r2modman/) or another compatible mod manager, then launch **modded**. Dependencies are installed automatically.
+Install [PartyHUD on Thunderstore](https://thunderstore.io/c/stonewards/p/thereisnouser/PartyHUD/) with [r2modman](https://thunderstore.io/c/stonewards/p/ebkr/r2modman/) or another compatible manager, then launch **modded**. Required dependencies are installed automatically.
 
 ## Links
 
