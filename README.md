@@ -1,6 +1,6 @@
 # Stonewards Party HUD
 
-A lightweight, client-side party overlay for **Stonewards**. See connected players' names, classes, current/max health, and downed state without searching the battlefield. Hunter companions appear as an indented health row under their owner when available. A separate row can display total defensive wall durability during a run. Remote teammate outlines and floating teammate nicknames are optional, with through-wall visibility configurable. The HUD uses the game's own class sprites when available, falling back to short class labels.
+A lightweight, client-side party overlay for **Stonewards**. See connected players' names, classes, current/max health, and downed state without searching the battlefield. Hunter companions appear as an indented health row under their owner when available. Remote teammate outlines and floating teammate nicknames are optional, with through-wall visibility configurable. The HUD uses the game's own class sprites when available, falling back to short class labels.
 
 > **Status:** Alpha. Earlier versions have been tested locally in multiplayer; the latest UI changes still require in-game testing. Not yet published on Thunderstore.
 
@@ -16,7 +16,7 @@ The manager will install the required BepInEx dependency automatically. **No .NE
 
 ## Display
 
-The panel defaults to the upper-left corner, below the game's player-name list, and hides while the Shop, Character Selection or Missions menu is open. Position (`Appearance.Anchor`, `TopOffset`, `BottomOffset`, `AvoidNativePlayerNames`), size (`Scale`, `ReadabilityScale`) and Hunter companion/wall-health display can be configured in `BepInEx/config/community.stonewards.partyhud.cfg`.
+The panel defaults to the upper-left corner, below the game's player-name list, and hides while the Shop, Character Selection, Missions, or Upgrade Offers menu is open. Position (`Appearance.Anchor`, `TopOffset`, `BottomOffset`, `AvoidNativePlayerNames`), size (`Scale`, `ReadabilityScale`) and Hunter companion display can be configured in `BepInEx/config/community.stonewards.partyhud.cfg`.
 
 ## Development
 
