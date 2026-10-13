@@ -31,7 +31,7 @@ The script builds the DLL against the locally installed game and BepInEx assembl
    powershell -ExecutionPolicy Bypass -File .\tools\package-thunderstore.ps1
    ```
 
-4. Examine `dist/PartyHUD-0.1.0.zip`. The archive root must contain `manifest.json`, `icon.png`, `README.md`, and `plugins/StonewardsPartyHUD.dll` (plus `LICENSE`). The plugin must match the source that was tested.
+4. Examine `dist/PartyHUD-<version>.zip`. The archive root must contain `manifest.json`, `icon.png`, `README.md`, and `plugins/StonewardsPartyHUD.dll` (plus `LICENSE`). The plugin must match the source that was tested.
 5. Smoke-test the archive as a local mod in a fresh r2modman or Gale profile. Local ZIP imports may not automatically install dependencies, so add BepInExPack to the test profile explicitly.
 6. Check the package description, version, icon, current game compatibility and licensing before publishing.
 7. Upload the verified ZIP to the Stonewards community under the publisher's authorized Thunderstore team. Test a normal manager installation **from Thunderstore** after publishing, including dependency installation.
