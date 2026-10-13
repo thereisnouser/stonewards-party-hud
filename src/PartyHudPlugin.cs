@@ -19,6 +19,7 @@ namespace StonewardsPartyHUD
         private const float HeaderHeight = 40f;
         private const float RowHeight = 67f;
         private const float CompanionRowHeight = 38f;
+        private const float WallRowHeight = 66f;
         private const float FooterPadding = 8f;
         private const float BottomHudSafeZone = 132f;
         private const float NativeRosterHeaderSafeZone = 130f;
@@ -40,6 +41,8 @@ namespace StonewardsPartyHUD
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<float> _scale;
+        private ConfigEntry<float> _readabilityScale;
+        private ConfigEntry<bool> _showWallHealth;
         private ConfigEntry<bool> _showCompanionHealth;
         private ConfigEntry<bool> _showTeammateOutlines;
         private ConfigEntry<bool> _showPlayerNames;
@@ -52,6 +55,12 @@ namespace StonewardsPartyHUD
         private ConfigEntry<int> _bottomOffset;
         private ConfigEntry<PanelAnchor> _anchor;
         private float _nextRefresh;
+        private float _nextWallRefresh;
+        private bool _hasWall;
+        private float _wallHealth;
+        private float _wallMaxHealth;
+        private int _wallSections;
+        private bool _wallBreached;
         private float _nextWarning;
         private GUIStyle _headingStyle;
         private GUIStyle _countStyle;
@@ -63,6 +72,7 @@ namespace StonewardsPartyHUD
         private GUIStyle _companionStyle;
         private GUIStyle _alertStyle;
         private GUIStyle _worldNameStyle;
+        private GUIStyle _wallStatusStyle;
 
         private sealed class PlayerEntry
         {
@@ -98,6 +108,10 @@ namespace StonewardsPartyHUD
                 "Show the party status HUD when network players are present.");
             _scale = Config.Bind("Appearance", "Scale", 1.0f,
                 "HUD size multiplier (clamped to 0.65 - 1.8).");
+            _readabilityScale = Config.Bind("Appearance", "ReadabilityScale", 1.12f,
+                "Extra panel enlargement (1.0 - 1.4), also applied to existing configurations.");
+            _showWallHealth = Config.Bind("General", "ShowWallHealth", true,
+                "Show the combined health of the currently spawned defensive wall sections.");
             _showCompanionHealth = Config.Bind("Appearance", "ShowCompanionHealth", true,
                 "Show a Hunter's companion health directly below the Hunter's entry.");
             _showTeammateOutlines = Config.Bind("TeammateOutlines", "Enabled", true,
@@ -136,6 +150,7 @@ namespace StonewardsPartyHUD
 
             _nextRefresh = Time.unscaledTime + RefreshSeconds;
             RefreshRoster();
+            RefreshWallHealth();
             UpdateTeammateOutlines();
         }
 
@@ -227,6 +242,56 @@ namespace StonewardsPartyHUD
                 if (Time.unscaledTime >= _nextWarning)
                 {
                     Logger.LogWarning("Could not read party state: " + ex);
+                    _nextWarning = Time.unscaledTime + 10f;
+                }
+            }
+        }
+
+        private void RefreshWallHealth()
+        {
+            if (Time.unscaledTime < _nextWallRefresh)
+                return;
+
+            _nextWallRefresh = Time.unscaledTime + 1f;
+            _hasWall = false;
+            _wallHealth = 0f;
+            _wallMaxHealth = 0f;
+            _wallSections = 0;
+            _wallBreached = false;
+
+            if (!_showWallHealth.Value)
+                return;
+
+            try
+            {
+                // WallStats exposes the defensive sections' Mirror SyncVars.
+                // Aggregate active network sections instead of choosing an
+                // arbitrary one that might not represent total durability.
+                var walls = UnityEngine.Object.FindObjectsOfType<WallStats>();
+                for (int i = 0; i < walls.Length; i++)
+                {
+                    var wall = walls[i];
+                    if (wall == null || !wall.isActiveAndEnabled || !wall.isClient)
+                        continue;
+
+                    float maximum = wall.NetworkcurrentMaxHealth;
+                    if (maximum <= 0f)
+                        continue;
+
+                    _wallHealth += Mathf.Clamp(wall.NetworkcurrentHealth, 0f, maximum);
+                    _wallMaxHealth += maximum;
+                    _wallSections++;
+                    _wallBreached |= wall.NetworkisDestroyed;
+                }
+
+                _hasWall = _wallSections > 0 && _wallMaxHealth > 0f;
+            }
+            catch (Exception ex)
+            {
+                _hasWall = false;
+                if (Time.unscaledTime >= _nextWarning)
+                {
+                    Logger.LogWarning("Could not read wall health: " + ex);
                     _nextWarning = Time.unscaledTime + 10f;
                 }
             }
@@ -509,7 +574,11 @@ namespace StonewardsPartyHUD
                 return true;
 
             var selection = CharacterSelectionScreen.Instance;
-            return selection != null && selection.IsOpen;
+            if (selection != null && selection.IsOpen)
+                return true;
+
+            var missions = GlobalMissionMenu.Instance;
+            return missions != null && missions.IsOpen;
         }
 
         private void OnGUI()
