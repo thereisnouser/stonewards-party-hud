@@ -63,6 +63,7 @@ namespace StonewardsPartyHUD
             public string Name;
             public string ClassName;
             public string Badge;
+            public Sprite ClassIcon;
             public Color Accent;
             public float Health;
             public float MaxHealth;
@@ -158,6 +159,7 @@ namespace StonewardsPartyHUD
                         Name = CleanName(player.NetworkplayerName),
                         ClassName = playerClass.ToString(),
                         Badge = ClassBadge(playerClass),
+                        ClassIcon = FindClassIcon(player, playerClass),
                         Accent = ClassColor(playerClass)
                     };
 
@@ -450,10 +452,16 @@ namespace StonewardsPartyHUD
 
             Fill(new Rect(x + 5f, rowY + 8f, 3f, 51f),
                 player.IsDead ? new Color(1f, 0.34f, 0.39f) : player.Accent);
-            Fill(new Rect(x + 14f, rowY + 11f, 38f, 39f),
-                player.IsDead ? new Color(0.49f, 0.17f, 0.21f) : player.Accent);
-            GUI.Label(new Rect(x + 14f, rowY + 16f, 38f, 28f),
-                player.Badge, _badgeStyle);
+            var iconSlot = new Rect(x + 14f, rowY + 11f, 38f, 39f);
+            Fill(iconSlot, new Color(0.11f, 0.19f, 0.24f, 0.95f));
+            if (!DrawClassIcon(player.ClassIcon, new Rect(iconSlot.x + 3f,
+                iconSlot.y + 3f, iconSlot.width - 6f, iconSlot.height - 6f)))
+            {
+                Fill(iconSlot, player.IsDead
+                    ? new Color(0.49f, 0.17f, 0.21f) : player.Accent);
+                GUI.Label(new Rect(x + 14f, rowY + 16f, 38f, 28f),
+                    player.Badge, _badgeStyle);
+            }
 
             GUI.Label(new Rect(x + 62f, rowY + 6f, 196f, 25f),
                 player.Name, _nameStyle);
@@ -569,6 +577,84 @@ namespace StonewardsPartyHUD
         private static string CleanName(string name)
         {
             return string.IsNullOrWhiteSpace(name) ? "Connecting..." : name;
+        }
+
+        private static Sprite FindClassIcon(FirstPersonController player, PlayerClass cls)
+        {
+            // The game's archetype database owns the original class sprites.
+            // Nothing is copied or bundled with this plugin.
+            try
+            {
+                var manager = PlayerArchetypeManager.Instance;
+                if (manager != null)
+                {
+                    var archetype = manager.GetPlayerArchetype(cls);
+                    if (archetype != null && archetype.Icon != null)
+                        return archetype.Icon;
+                }
+            }
+            catch
+            {
+                // The archetype manager might not yet be initialized during a scene load.
+            }
+
+            try
+            {
+                var archetype = player.PlayerArchetypeSO;
+                if (archetype != null && archetype.PlayerClass == cls)
+                    return archetype.Icon;
+            }
+            catch
+            {
+                // Retain the two-letter fallback until the class data is available.
+            }
+
+            return null;
+        }
+
+        private static bool DrawClassIcon(Sprite sprite, Rect area)
+        {
+            if (sprite == null)
+                return false;
+
+            try
+            {
+                var texture = sprite.texture;
+                if (texture == null || texture.width == 0 || texture.height == 0)
+                    return false;
+
+                // A Sprite may occupy only a portion of a texture atlas. Use its
+                // actual texture coordinates instead of drawing the entire atlas.
+                Rect texRect = sprite.textureRect;
+                Rect uv = new Rect(texRect.x / texture.width, texRect.y / texture.height,
+                    texRect.width / texture.width, texRect.height / texture.height);
+
+                Rect original = sprite.rect;
+                if (original.width <= 0f || original.height <= 0f)
+                    return false;
+
+                float ratio = original.width / original.height;
+                if (ratio > 1f)
+                {
+                    float h = area.width / ratio;
+                    area.y += (area.height - h) * 0.5f;
+                    area.height = h;
+                }
+                else
+                {
+                    float w = area.height * ratio;
+                    area.x += (area.width - w) * 0.5f;
+                    area.width = w;
+                }
+
+                GUI.DrawTextureWithTexCoords(area, texture, uv, true);
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                // Some tightly packed sprites do not expose textureRect.
+                return false;
+            }
         }
 
         private static string ClassBadge(PlayerClass cls)
