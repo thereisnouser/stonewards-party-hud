@@ -40,6 +40,7 @@ namespace StonewardsPartyHUD
         private ConfigEntry<float> _scale;
         private ConfigEntry<bool> _showCompanionHealth;
         private ConfigEntry<bool> _showTeammateOutlines;
+        private ConfigEntry<bool> _showClassLabels;
         private ConfigEntry<bool> _outlinesThroughWalls;
         private ConfigEntry<float> _outlineWidth;
         private ConfigEntry<int> _leftOffset;
@@ -57,6 +58,7 @@ namespace StonewardsPartyHUD
         private GUIStyle _statusStyle;
         private GUIStyle _companionStyle;
         private GUIStyle _alertStyle;
+        private GUIStyle _worldClassStyle;
 
         private sealed class PlayerEntry
         {
@@ -76,6 +78,7 @@ namespace StonewardsPartyHUD
         {
             public GameObject VisualRoot;
             public QuickOutline Component;
+            public Renderer[] Renderers;
         }
 
         private sealed class CompanionEntry
@@ -95,6 +98,8 @@ namespace StonewardsPartyHUD
                 "Show a Hunter's companion health directly below the Hunter's entry.");
             _showTeammateOutlines = Config.Bind("TeammateOutlines", "Enabled", true,
                 "Outline remote teammates in the world (never the local player).");
+            _showClassLabels = Config.Bind("TeammateOutlines", "ShowClassLabels", true,
+                "Show each remote teammate's class above their outlined character.");
             _outlinesThroughWalls = Config.Bind("TeammateOutlines", "ThroughWalls", true,
                 "Show teammate silhouettes even when they are behind obstacles.");
             _outlineWidth = Config.Bind("TeammateOutlines", "Width", 3.0f,
@@ -311,7 +316,12 @@ namespace StonewardsPartyHUD
                             throw;
                         }
 
-                        entry = new OutlineEntry { VisualRoot = root, Component = outline };
+                        entry = new OutlineEntry
+                        {
+                            VisualRoot = root,
+                            Component = outline,
+                            Renderers = renderers
+                        };
                         _teamOutlines.Add(player, entry);
                         Logger.LogInfo("Initialized outline for teammate " +
                             player.NetworkplayerName + " (" + renderers.Length + " renderers).");
@@ -363,6 +373,111 @@ namespace StonewardsPartyHUD
             _expiredOutlines.Clear();
         }
 
+        private void DrawTeammateClassLabels()
+        {
+            // Labels are drawn in screen space, so they remain legible through
+            // terrain without modifying world materials or network state.
+            if (!_showTeammateOutlines.Value || !_showClassLabels.Value ||
+                _teamOutlines.Count == 0)
+                return;
+
+            Camera camera = Camera.main;
+            if (camera == null)
+                return;
+
+            Color previous = GUI.color;
+            try
+            {
+                foreach (var pair in _teamOutlines)
+                {
+                    var player = pair.Key;
+                    var outline = pair.Value;
+                    if (player == null || player.isLocalPlayer || outline.Component == null ||
+                        outline.VisualRoot == null || !outline.VisualRoot.activeInHierarchy ||
+                        outline.Renderers == null)
+                        continue;
+
+                    // Renderer bounds follow the animated character. Avoid using
+                    // a fixed height offset, which varies by character model.
+                    bool found = false;
+                    Bounds bounds = default(Bounds);
+                    foreach (var renderer in outline.Renderers)
+                    {
+                        if (renderer == null || !renderer.enabled ||
+                            !renderer.gameObject.activeInHierarchy)
+                            continue;
+
+                        if (!found)
+                        {
+                            bounds = renderer.bounds;
+                            found = true;
+                        }
+                        else
+                            bounds.Encapsulate(renderer.bounds);
+                    }
+
+                    if (!found)
+                        continue;
+
+                    Vector3 head = new Vector3(bounds.center.x,
+                        bounds.max.y + 0.12f, bounds.center.z);
+                    Vector3 feet = new Vector3(bounds.center.x,
+                        bounds.min.y, bounds.center.z);
+                    Vector3 projectedHead = camera.WorldToScreenPoint(head);
+                    if (projectedHead.z <= 0f)
+                        continue;
+
+                    Vector3 projectedFeet = camera.WorldToScreenPoint(feet);
+                    float visibleHeight = projectedFeet.z > 0f
+                        ? Mathf.Abs(projectedHead.y - projectedFeet.y)
+                        : 0f;
+
+                    // Keep clear of Stonewards' existing name tag above heads.
+                    const float labelWidth = 126f;
+                    const float labelHeight = 24f;
+                    float headGap = Mathf.Clamp(visibleHeight * 0.20f, 24f, 52f);
+                    float left = projectedHead.x - labelWidth * 0.5f;
+                    float top = Screen.height - projectedHead.y - headGap - labelHeight;
+
+                    // No stuck labels when a teammate moves outside the view.
+                    if (left < 4f || top < 4f ||
+                        left + labelWidth > Screen.width - 4f ||
+                        top + labelHeight > Screen.height - 4f)
+                        continue;
+
+                    bool downed = player.PlayerStats != null &&
+                        player.PlayerStats.NetworkisDead;
+                    Color accent = downed
+                        ? new Color(1f, 0.35f, 0.40f, 1f)
+                        : new Color(0.26f, 0.89f, 0.97f, 1f);
+
+                    Fill(new Rect(left, top, labelWidth, labelHeight),
+                        new Color(0.035f, 0.075f, 0.11f, 0.86f));
+                    Fill(new Rect(left, top + labelHeight - 2f,
+                        labelWidth, 2f), accent);
+
+                    _worldClassStyle.normal.textColor = downed
+                        ? new Color(1f, 0.78f, 0.79f, 1f)
+                        : Color.white;
+                    GUI.Label(new Rect(left + 3f, top + 1f,
+                        labelWidth - 6f, labelHeight - 4f),
+                        player.NetworkplayerClass.ToString(), _worldClassStyle);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (Time.unscaledTime >= _nextWarning)
+                {
+                    Logger.LogWarning("Could not draw teammate class labels: " + ex);
+                    _nextWarning = Time.unscaledTime + 10f;
+                }
+            }
+            finally
+            {
+                GUI.color = previous;
+            }
+        }
+
         private void OnGUI()
         {
             if (!_enabled.Value || _players.Count == 0 ||
@@ -370,6 +485,7 @@ namespace StonewardsPartyHUD
                 return;
 
             EnsureStyles();
+            DrawTeammateClassLabels();
 
             float height = HeaderHeight + _players.Count * RowHeight + FooterPadding;
             for (int i = 0; i < _players.Count; i++)
@@ -558,6 +674,7 @@ namespace StonewardsPartyHUD
             _statusStyle = MakeStyle(11, Color.white, TextAnchor.MiddleRight, true);
             _companionStyle = MakeStyle(12, Color.white, TextAnchor.MiddleLeft, true);
             _alertStyle = MakeStyle(11, new Color(1f, 0.40f, 0.44f), TextAnchor.MiddleRight, true);
+            _worldClassStyle = MakeStyle(14, Color.white, TextAnchor.MiddleCenter, true);
         }
 
         private static GUIStyle MakeStyle(int size, Color color, TextAnchor align, bool bold = false)
