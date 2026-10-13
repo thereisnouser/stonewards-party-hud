@@ -650,9 +650,10 @@ namespace StonewardsPartyHUD
                 GUI.DrawTextureWithTexCoords(area, texture, uv, true);
                 return true;
             }
-            catch (InvalidOperationException)
+            catch (Exception)
             {
-                // Some tightly packed sprites do not expose textureRect.
+                // Some packed sprites do not expose usable texture coordinates.
+                // A failed icon must never break drawing of the party panel.
                 return false;
             }
         }
