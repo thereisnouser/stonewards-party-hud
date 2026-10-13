@@ -16,7 +16,7 @@ The manager will install the required BepInEx dependency automatically. **No .NE
 
 ## Display
 
-The panel defaults to the upper-left corner to keep Stonewards' native Inventory and Emote prompts unobstructed. Position (`Appearance.Anchor`, `TopOffset`, `BottomOffset`), size (`Scale`) and Hunter companion display can be configured in `BepInEx/config/community.stonewards.partyhud.cfg`.
+The panel defaults to the upper-left corner, below the game's player-name list, and hides while the Shop or Character Selection menu is open. Position (`Appearance.Anchor`, `TopOffset`, `BottomOffset`, `AvoidNativePlayerNames`), size (`Scale`) and Hunter companion display can be configured in `BepInEx/config/community.stonewards.partyhud.cfg`.
 
 ## Development
 
