@@ -2,15 +2,17 @@
 
 A lightweight, client-side party overlay for **Stonewards**. See connected players' names, classes, current/max health, and downed state without searching the battlefield. Hunter companions appear as an indented health row under their owner when available. Remote teammate outlines and floating teammate nicknames are optional, with through-wall visibility configurable. The HUD uses the game's own class sprites when available, falling back to short class labels.
 
-> **Status:** Alpha (v0.1.0). Tested locally in Stonewards v0.2.3 multiplayer; feedback and bug reports are welcome.
+> **Status:** Public alpha (v0.1.0). Tested locally in Stonewards v0.2.3 multiplayer; feedback and bug reports are welcome.
+
+**[Download on Thunderstore](https://thunderstore.io/c/stonewards/p/thereisnouser/PartyHUD/)**
 
 ## Installation
 
 1. Install [r2modman](https://thunderstore.io/c/stonewards/p/ebkr/r2modman/) or another compatible Thunderstore manager and choose **Stonewards**.
-2. Find **PartyHUD** in the mod browser and click **Download**.
+2. Install **[PartyHUD](https://thunderstore.io/c/stonewards/p/thereisnouser/PartyHUD/)** from the mod browser.
 3. Use **Start modded** to launch the game.
 
-The manager will install the required BepInEx dependency automatically. **No .NET SDK, terminal or manual DLL copying will be needed.**
+The package declares BepInExPack as a required dependency. **No .NET SDK, terminal or manual DLL copying is needed.**
 
 ## Display
 
