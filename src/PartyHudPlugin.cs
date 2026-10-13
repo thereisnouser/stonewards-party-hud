@@ -46,6 +46,12 @@ namespace StonewardsPartyHUD
         private static readonly FieldInfo CharacterVisualsParentField =
             typeof(FirstPersonController).GetField("characterVisualsParent",
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        private static readonly FieldInfo OutlineMaskMaterialField =
+            typeof(QuickOutline).GetField("outlineMaskMaterial",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo OutlineFillMaterialField =
+            typeof(QuickOutline).GetField("outlineFillMaterial",
+                BindingFlags.Instance | BindingFlags.NonPublic);
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<float> _scale;
         private ConfigEntry<float> _readabilityScale;
@@ -93,6 +99,7 @@ namespace StonewardsPartyHUD
             public GameObject VisualRoot;
             public QuickOutline Component;
             public Renderer[] Renderers;
+            public float NextMaterialCheck;
         }
 
         private sealed class CompanionEntry
@@ -260,6 +267,56 @@ namespace StonewardsPartyHUD
             return component != null ? component.gameObject : null;
         }
 
+        private static bool SameRenderers(Renderer[] previous, Renderer[] current)
+        {
+            if (previous == null || current == null || previous.Length != current.Length)
+                return false;
+
+            for (int i = 0; i < current.Length; i++)
+                if (previous[i] == null || previous[i] != current[i])
+                    return false;
+
+            return true;
+        }
+
+        private static bool HasOutlineMaterial(Renderer renderer, Material mask, Material fill)
+        {
+            // Another game system may overwrite sharedMaterials when replacing
+            // equipment or visuals without destroying the character object.
+            if (renderer == null || !renderer.enabled ||
+                !renderer.gameObject.activeInHierarchy)
+                return true;
+
+            var shared = renderer.sharedMaterials;
+            bool foundMask = false;
+            bool foundFill = false;
+            foreach (var material in shared)
+            {
+                if (material == mask)
+                    foundMask = true;
+                if (material == fill)
+                    foundFill = true;
+            }
+            return foundMask && foundFill;
+        }
+
+        private static bool IsOutlineMaterialMissing(OutlineEntry entry)
+        {
+            if (OutlineMaskMaterialField == null || OutlineFillMaterialField == null)
+                return false;
+
+            var mask = OutlineMaskMaterialField.GetValue(entry.Component) as Material;
+            var fill = OutlineFillMaterialField.GetValue(entry.Component) as Material;
+            if (mask == null || fill == null)
+                return false;
+
+            foreach (var renderer in entry.Renderers)
+                if (!HasOutlineMaterial(renderer, mask, fill))
+                    return true;
+
+            return false;
+        }
+
         private void UpdateTeammateOutlines()
         {
             if (!_showTeammateOutlines.Value)
@@ -303,15 +360,25 @@ namespace StonewardsPartyHUD
                     if (root == null || !root.activeInHierarchy)
                         continue;
 
+                    var renderers = root.GetComponentsInChildren<Renderer>(true);
+                    if (renderers.Length == 0)
+                        continue;
+
                     OutlineEntry entry;
+                    if (_teamOutlines.TryGetValue(player, out entry) &&
+                        !SameRenderers(entry.Renderers, renderers))
+                    {
+                        // The scene/class/equipment swapped renderer objects.
+                        // Remove our stale component; recreate on the next tick
+                        // after Unity has processed Destroy().
+                        RemoveOutline(player);
+                        continue;
+                    }
+
                     if (!_teamOutlines.TryGetValue(player, out entry))
                     {
                         // Never overwrite an outline that belongs to the game or another mod.
                         if (root.GetComponent<QuickOutline>() != null)
-                            continue;
-
-                        var renderers = root.GetComponentsInChildren<Renderer>(true);
-                        if (renderers.Length == 0)
                             continue;
 
                         var outline = root.AddComponent<QuickOutline>();
@@ -342,7 +409,8 @@ namespace StonewardsPartyHUD
                         {
                             VisualRoot = root,
                             Component = outline,
-                            Renderers = renderers
+                            Renderers = renderers,
+                            NextMaterialCheck = Time.unscaledTime + 2f
                         };
                         _teamOutlines.Add(player, entry);
                         Logger.LogInfo("Initialized outline for teammate " +
@@ -351,6 +419,22 @@ namespace StonewardsPartyHUD
 
                     if (entry.Component == null)
                         continue;
+
+                    // Some game updates may disable our component or replace
+                    // renderer materials without changing the renderer objects.
+                    // Restore only our own materials, and at most once per 2 s.
+                    if (!entry.Component.enabled)
+                        entry.Component.enabled = true;
+
+                    if (Time.unscaledTime >= entry.NextMaterialCheck)
+                    {
+                        entry.NextMaterialCheck = Time.unscaledTime + 2f;
+                        if (IsOutlineMaterialMissing(entry))
+                        {
+                            entry.Component.enabled = false;
+                            entry.Component.enabled = true;
+                        }
+                    }
 
                     bool downed = player.PlayerStats != null && player.PlayerStats.NetworkisDead;
                     entry.Component.OutlineMode = _outlinesThroughWalls.Value
