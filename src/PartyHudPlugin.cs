@@ -16,7 +16,7 @@ namespace StonewardsPartyHUD
         public const string PluginVersion = "0.1.1";
 
         private const float RefreshSeconds = 0.2f;
-        private const float PanelWidth = 358f;
+        private const float PanelWidth = 322f;
         private const float HeaderHeight = 40f;
         private const float RowHeight = 67f;
         private const float CompanionRowHeight = 38f;
@@ -27,10 +27,10 @@ namespace StonewardsPartyHUD
         private const float NativeRosterPlayerRowSafeZone = 42f;
         private const float ReferenceScreenWidth = 1920f;
         private const float ReferenceScreenHeight = 1080f;
-        // Increase the entire native-styled HUD uniformly, including the
-        // frame, game font, icons and health bars. Existing user config stays
-        // intact; resolution-based downscaling and viewport fitting still apply.
-        private const float PanelSizeBoost = 1.10f;
+        // Narrower frame, but slightly larger overall on screen: pixel font,
+        // class icons and health bars keep their proportions. User config,
+        // resolution-aware scaling and viewport fitting still apply.
+        private const float PanelSizeBoost = 1.16f;
 
         // Native Stonewards UI colors sampled from Shop and Character Selection.
         private static readonly Color PanelFrame = new Color(0.72f, 0.64f, 0.48f);
@@ -788,7 +788,7 @@ namespace StonewardsPartyHUD
             if (downed > 0)
                 GUI.Label(new Rect(x + 12f, y + 11f, 86f, 21f),
                     downed + " DOWN", _alertStyle);
-            GUI.Label(new Rect(x + 262f, y + 11f, 82f, 20f),
+            GUI.Label(new Rect(x + PanelWidth - 83f, y + 11f, 69f, 20f),
                 _players.Count + " / 4", _countStyle);
 
             float rowY = y + HeaderHeight;
@@ -855,14 +855,14 @@ namespace StonewardsPartyHUD
                     player.Badge, _badgeStyle);
             }
 
-            GUI.Label(new Rect(x + 62f, rowY + 6f, 196f, 25f),
-                player.Name, _nameStyle);
+            GUI.Label(new Rect(x + 62f, rowY + 6f, 148f, 25f),
+                FitText(player.Name, _nameStyle, 148f), _nameStyle);
 
             string hp = player.HasStats && player.MaxHealth > 0f
                 ? Mathf.CeilToInt(Mathf.Max(0f, player.Health)) + " / " +
                     Mathf.CeilToInt(player.MaxHealth)
                 : "-- / --";
-            GUI.Label(new Rect(x + 263f, rowY + 8f, 81f, 22f),
+            GUI.Label(new Rect(x + 218f, rowY + 8f, 90f, 22f),
                 hp, _healthStyle);
 
             GUI.Label(new Rect(x + 62f, rowY + 30f, 115f, 17f),
@@ -870,10 +870,10 @@ namespace StonewardsPartyHUD
             _statusStyle.normal.textColor = player.IsDead
                 ? new Color(1f, 0.52f, 0.50f)
                 : new Color(0.89f, 0.83f, 0.72f);
-            GUI.Label(new Rect(x + 180f, rowY + 30f, 164f, 17f),
+            GUI.Label(new Rect(x + 169f, rowY + 30f, 139f, 17f),
                 player.IsDead ? "DOWN - REVIVE" : "ALIVE", _statusStyle);
 
-            const float barWidth = 282f;
+            const float barWidth = PanelWidth - 86f;
             Fill(new Rect(x + 62f, rowY + 53f, barWidth, 8f), BarTrack);
             if (player.HasStats && player.MaxHealth > 0f && !player.IsDead)
             {
@@ -904,17 +904,17 @@ namespace StonewardsPartyHUD
             _companionStyle.normal.textColor = down
                 ? new Color(1f, 0.48f, 0.51f)
                 : new Color(0.87f, 0.79f, 0.64f);
-            GUI.Label(new Rect(x + 69f, rowY + 2f, 195f, 21f),
-                down ? "BEAR - KNOCKED OUT" : "BEAR", _companionStyle);
+            GUI.Label(new Rect(x + 69f, rowY + 2f, 147f, 21f),
+                down ? "BEAR - DOWN" : "BEAR", _companionStyle);
 
             string hp = companion.MaxHealth > 0f
                 ? Mathf.CeilToInt(Mathf.Max(0f, companion.Health)) + " / " +
                     Mathf.CeilToInt(companion.MaxHealth)
                 : "-- / --";
-            GUI.Label(new Rect(x + 263f, rowY + 2f, 81f, 22f),
+            GUI.Label(new Rect(x + 218f, rowY + 2f, 90f, 22f),
                 hp, _healthStyle);
 
-            const float barWidth = 275f;
+            const float barWidth = PanelWidth - 93f;
             Fill(new Rect(x + 69f, rowY + 28f, barWidth, 6f), BarTrack);
             if (!down && companion.MaxHealth > 0f)
             {
@@ -940,12 +940,12 @@ namespace StonewardsPartyHUD
 
             string title = _wallSections > 1
                 ? "WALL TOTAL (" + _wallSections + ")" : "WALL";
-            GUI.Label(new Rect(x + 23f, rowY + 5f, 190f, 26f),
+            GUI.Label(new Rect(x + 23f, rowY + 5f, 180f, 26f),
                 title, _nameStyle);
 
             string hp = Mathf.CeilToInt(Mathf.Max(0f, _wallHealth)) + " / " +
                 Mathf.CeilToInt(_wallMaxHealth);
-            GUI.Label(new Rect(x + 229f, rowY + 6f, 115f, 26f),
+            GUI.Label(new Rect(x + 208f, rowY + 6f, 100f, 26f),
                 hp, _healthStyle);
 
             _wallStatusStyle.normal.textColor = _wallBreached
@@ -954,7 +954,7 @@ namespace StonewardsPartyHUD
             GUI.Label(new Rect(x + 23f, rowY + 30f, 250f, 17f),
                 _wallBreached ? "BREACHED - REPAIR" : "DEFENSE", _wallStatusStyle);
 
-            const float barWidth = 321f;
+            const float barWidth = PanelWidth - 47f;
             Fill(new Rect(x + 23f, rowY + 51f, barWidth, 9f), BarTrack);
             float fraction = Mathf.Clamp01(_wallHealth / _wallMaxHealth);
             if (fraction > 0f)
@@ -1061,6 +1061,20 @@ namespace StonewardsPartyHUD
         private static string CleanName(string name)
         {
             return string.IsNullOrWhiteSpace(name) ? "Connecting..." : name;
+        }
+
+        private static string FitText(string text, GUIStyle style, float width)
+        {
+            if (string.IsNullOrEmpty(text) || style.CalcSize(new GUIContent(text)).x <= width)
+                return text;
+
+            const string suffix = "...";
+            int length = text.Length;
+            while (length > 0 &&
+                style.CalcSize(new GUIContent(text.Substring(0, length) + suffix)).x > width)
+                length--;
+
+            return length > 0 ? text.Substring(0, length) + suffix : suffix;
         }
 
         private static Sprite FindClassIcon(FirstPersonController player, PlayerClass cls)
