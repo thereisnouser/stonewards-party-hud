@@ -2,7 +2,7 @@
   "name": "PartyHUD",
   "version_number": "0.2.0",
   "website_url": "https://github.com/thereisnouser/stonewards-party-hud",
-  "description": "A multiplayer party HUD for Stonewards showing names, classes, health and downed state.",
+  "description": "A compact client-side Stonewards party HUD with teammate HP, outlines, companion health and wall durability.",
   "dependencies": [
     "BepInEx-BepInExPack-5.4.2305"
   ]
