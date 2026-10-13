@@ -17,11 +17,13 @@ namespace StonewardsPartyHUD
         private const float PanelWidth = 326f;
         private const float HeaderHeight = 32f;
         private const float RowHeight = 55f;
+        private const float CompanionRowHeight = 34f;
         private const float FooterPadding = 6f;
 
         private readonly List<PlayerEntry> _players = new List<PlayerEntry>(4);
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<float> _scale;
+        private ConfigEntry<bool> _showCompanionHealth;
         private ConfigEntry<int> _leftOffset;
         private ConfigEntry<int> _bottomOffset;
         private float _nextRefresh;
@@ -33,6 +35,7 @@ namespace StonewardsPartyHUD
         private GUIStyle _badgeStyle;
         private GUIStyle _healthStyle;
         private GUIStyle _statusStyle;
+        private GUIStyle _companionStyle;
 
         private sealed class PlayerEntry
         {
@@ -44,6 +47,14 @@ namespace StonewardsPartyHUD
             public float MaxHealth;
             public bool HasStats;
             public bool IsDead;
+            public CompanionEntry Companion;
+        }
+
+        private sealed class CompanionEntry
+        {
+            public float Health;
+            public float MaxHealth;
+            public bool IsKnockedOut;
         }
 
         private void Awake()
@@ -52,6 +63,8 @@ namespace StonewardsPartyHUD
                 "Show the party status HUD when network players are present.");
             _scale = Config.Bind("Appearance", "Scale", 1.0f,
                 "HUD size multiplier (clamped to 0.65 - 1.8).");
+            _showCompanionHealth = Config.Bind("Appearance", "ShowCompanionHealth", true,
+                "Show a Hunter's companion health directly below the Hunter's entry.");
             _leftOffset = Config.Bind("Appearance", "LeftOffset", 20,
                 "Distance from the left screen edge, in unscaled pixels.");
             _bottomOffset = Config.Bind("Appearance", "BottomOffset", 74,
@@ -106,6 +119,39 @@ namespace StonewardsPartyHUD
                         entry.IsDead = stats.NetworkisDead;
                     }
 
+                    if (_showCompanionHealth.Value && playerClass == PlayerClass.HUNTER)
+                    {
+                        // Mirror synchronizes the companion reference to all clients.
+                        // If it arrives later than the companion spawn, try its owner link.
+                        var companion = player.NetworksyncCompanion;
+                        if (companion == null)
+                        {
+                            var known = Companion.LocalCompanions;
+                            if (known != null)
+                            {
+                                for (int c = 0; c < known.Count; c++)
+                                {
+                                    var candidate = known[c];
+                                    if (candidate != null && candidate.Networkowner == player)
+                                    {
+                                        companion = candidate;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (companion != null)
+                        {
+                            entry.Companion = new CompanionEntry
+                            {
+                                Health = companion.NetworkcurrentHealth,
+                                MaxHealth = companion.NetworkcurrentMaxHealth,
+                                IsKnockedOut = companion.NetworksyncIsKnockedOut
+                            };
+                        }
+                    }
+
                     _players.Add(entry);
                 }
             }
@@ -131,6 +177,9 @@ namespace StonewardsPartyHUD
             float screenWidth = Screen.width / scale;
             float screenHeight = Screen.height / scale;
             float height = HeaderHeight + _players.Count * RowHeight + FooterPadding;
+            for (int i = 0; i < _players.Count; i++)
+                if (_players[i].Companion != null)
+                    height += CompanionRowHeight;
             float x = Mathf.Clamp(_leftOffset.Value, 0f, Mathf.Max(0f, screenWidth - PanelWidth - 8f));
             float y = Mathf.Clamp(screenHeight - _bottomOffset.Value - height,
                 8f, Mathf.Max(8f, screenHeight - height));
@@ -160,8 +209,17 @@ namespace StonewardsPartyHUD
             GUI.Label(new Rect(x + 215f, y + 5f, 98f, 22f),
                 _players.Count + " PLAYER" + (_players.Count == 1 ? "" : "S"), _countStyle);
 
+            float rowY = y + HeaderHeight;
             for (int i = 0; i < _players.Count; i++)
-                DrawPlayer(x, y + HeaderHeight + i * RowHeight, _players[i], i);
+            {
+                DrawPlayer(x, rowY, _players[i], i);
+                rowY += RowHeight;
+                if (_players[i].Companion != null)
+                {
+                    DrawCompanion(x, rowY, _players[i].Companion);
+                    rowY += CompanionRowHeight;
+                }
+            }
         }
 
         private void DrawPlayer(float x, float rowY, PlayerEntry player, int index)
@@ -207,6 +265,43 @@ namespace StonewardsPartyHUD
                 player.IsDead ? "DOWN - REVIVE" : "ALIVE", _statusStyle);
         }
 
+        private void DrawCompanion(float x, float rowY, CompanionEntry companion)
+        {
+            bool down = companion.IsKnockedOut;
+            Color tint = down
+                ? new Color(0.48f, 0.09f, 0.14f, 0.28f)
+                : new Color(0.19f, 0.35f, 0.30f, 0.24f);
+            Fill(new Rect(x + 44f, rowY, PanelWidth - 44f, CompanionRowHeight), tint);
+            Fill(new Rect(x + 51f, rowY + 1f, 2f, CompanionRowHeight - 3f),
+                down ? new Color(0.97f, 0.36f, 0.39f) : new Color(0.46f, 0.69f, 0.51f));
+
+            _companionStyle.normal.textColor = down
+                ? new Color(1f, 0.46f, 0.49f)
+                : new Color(0.74f, 0.85f, 0.76f);
+            GUI.Label(new Rect(x + 62f, rowY + 1f, 172f, 18f),
+                down ? "BEAR - KNOCKED OUT" : "BEAR", _companionStyle);
+
+            const float barWidth = 172f;
+            Fill(new Rect(x + 62f, rowY + 22f, barWidth, 6f),
+                new Color(0.22f, 0.30f, 0.36f, 1f));
+
+            if (!down && companion.MaxHealth > 0f)
+            {
+                float fraction = Mathf.Clamp01(companion.Health / companion.MaxHealth);
+                Color barColor = fraction > 0.3f
+                    ? new Color(0.43f, 0.75f, 0.52f)
+                    : new Color(0.95f, 0.63f, 0.30f);
+                if (fraction > 0f)
+                    Fill(new Rect(x + 62f, rowY + 22f, barWidth * fraction, 6f), barColor);
+            }
+
+            string hp = companion.MaxHealth > 0f
+                ? Mathf.CeilToInt(Mathf.Max(0f, companion.Health)) + " / " +
+                  Mathf.CeilToInt(companion.MaxHealth)
+                : "-- / --";
+            GUI.Label(new Rect(x + 236f, rowY + 8f, 77f, 21f), hp, _healthStyle);
+        }
+
         private static void Fill(Rect rect, Color color)
         {
             Color previous = GUI.color;
@@ -227,6 +322,7 @@ namespace StonewardsPartyHUD
             _badgeStyle = MakeStyle(12, Color.white, TextAnchor.MiddleCenter, true);
             _healthStyle = MakeStyle(11, Color.white, TextAnchor.MiddleRight);
             _statusStyle = MakeStyle(10, Color.white, TextAnchor.MiddleLeft, true);
+            _companionStyle = MakeStyle(11, Color.white, TextAnchor.MiddleLeft, true);
         }
 
         private static GUIStyle MakeStyle(int size, Color color, TextAnchor align, bool bold = false)
