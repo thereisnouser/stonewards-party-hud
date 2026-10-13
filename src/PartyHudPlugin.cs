@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using BepInEx;
 using BepInEx.Configuration;
 using UnityEngine;
@@ -20,10 +21,20 @@ namespace StonewardsPartyHUD
         private const float CompanionRowHeight = 34f;
         private const float FooterPadding = 6f;
 
+        // Only components installed by this plugin are tracked and removed.
         private readonly List<PlayerEntry> _players = new List<PlayerEntry>(4);
+        private readonly Dictionary<FirstPersonController, OutlineEntry> _teamOutlines =
+            new Dictionary<FirstPersonController, OutlineEntry>();
+        private readonly List<FirstPersonController> _expiredOutlines = new List<FirstPersonController>();
+        private static readonly FieldInfo CharacterVisualsParentField =
+            typeof(FirstPersonController).GetField("characterVisualsParent",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<float> _scale;
         private ConfigEntry<bool> _showCompanionHealth;
+        private ConfigEntry<bool> _showTeammateOutlines;
+        private ConfigEntry<bool> _outlinesThroughWalls;
+        private ConfigEntry<float> _outlineWidth;
         private ConfigEntry<int> _leftOffset;
         private ConfigEntry<int> _bottomOffset;
         private float _nextRefresh;
@@ -50,6 +61,12 @@ namespace StonewardsPartyHUD
             public CompanionEntry Companion;
         }
 
+        private sealed class OutlineEntry
+        {
+            public GameObject VisualRoot;
+            public QuickOutline Component;
+        }
+
         private sealed class CompanionEntry
         {
             public float Health;
@@ -65,6 +82,12 @@ namespace StonewardsPartyHUD
                 "HUD size multiplier (clamped to 0.65 - 1.8).");
             _showCompanionHealth = Config.Bind("Appearance", "ShowCompanionHealth", true,
                 "Show a Hunter's companion health directly below the Hunter's entry.");
+            _showTeammateOutlines = Config.Bind("TeammateOutlines", "Enabled", true,
+                "Outline remote teammates in the world (never the local player).");
+            _outlinesThroughWalls = Config.Bind("TeammateOutlines", "ThroughWalls", true,
+                "Show teammate silhouettes even when they are behind obstacles.");
+            _outlineWidth = Config.Bind("TeammateOutlines", "Width", 3.0f,
+                "Outline thickness; clamped to 0.5 - 6.0.");
             _leftOffset = Config.Bind("Appearance", "LeftOffset", 20,
                 "Distance from the left screen edge, in unscaled pixels.");
             _bottomOffset = Config.Bind("Appearance", "BottomOffset", 74,
@@ -75,13 +98,27 @@ namespace StonewardsPartyHUD
         private void Update()
         {
             if (!_enabled.Value)
+            {
+                RemoveAllOutlines();
                 return;
+            }
 
             if (Time.unscaledTime < _nextRefresh)
                 return;
 
             _nextRefresh = Time.unscaledTime + RefreshSeconds;
             RefreshRoster();
+            UpdateTeammateOutlines();
+        }
+
+        private void OnDisable()
+        {
+            RemoveAllOutlines();
+        }
+
+        private void OnDestroy()
+        {
+            RemoveAllOutlines();
         }
 
         // Read-only client-side state. No Harmony patches, network messages or game mutations.
@@ -164,6 +201,125 @@ namespace StonewardsPartyHUD
                     _nextWarning = Time.unscaledTime + 10f;
                 }
             }
+        }
+
+        private static GameObject FindCharacterVisuals(FirstPersonController player)
+        {
+            if (CharacterVisualsParentField == null)
+                return null;
+
+            var visual = CharacterVisualsParentField.GetValue(player);
+            var go = visual as GameObject;
+            if (go != null)
+                return go;
+
+            var component = visual as Component;
+            return component != null ? component.gameObject : null;
+        }
+
+        private void UpdateTeammateOutlines()
+        {
+            if (!_showTeammateOutlines.Value)
+            {
+                RemoveAllOutlines();
+                return;
+            }
+
+            try
+            {
+                var roster = FirstPersonController.LocalPlayers;
+                if (roster == null || roster.Count == 0)
+                {
+                    RemoveAllOutlines();
+                    return;
+                }
+
+                _expiredOutlines.Clear();
+                foreach (var item in _teamOutlines)
+                {
+                    var player = item.Key;
+                    var entry = item.Value;
+                    if (player == null || !roster.Contains(player) || player.isLocalPlayer ||
+                        entry.VisualRoot == null || entry.Component == null ||
+                        FindCharacterVisuals(player) != entry.VisualRoot)
+                    {
+                        _expiredOutlines.Add(player);
+                    }
+                }
+                foreach (var player in _expiredOutlines)
+                    RemoveOutline(player);
+                _expiredOutlines.Clear();
+
+                for (int i = 0; i < roster.Count; i++)
+                {
+                    var player = roster[i];
+                    if (player == null || player.isLocalPlayer)
+                        continue;
+
+                    var root = FindCharacterVisuals(player);
+                    if (root == null || !root.activeInHierarchy)
+                        continue;
+
+                    OutlineEntry entry;
+                    if (!_teamOutlines.TryGetValue(player, out entry))
+                    {
+                        // Never overwrite an outline that belongs to the game or another mod.
+                        if (root.GetComponent<QuickOutline>() != null ||
+                            root.GetComponentsInChildren<Renderer>().Length == 0)
+                            continue;
+
+                        var outline = root.AddComponent<QuickOutline>();
+                        if (outline == null)
+                            continue;
+
+                        entry = new OutlineEntry { VisualRoot = root, Component = outline };
+                        _teamOutlines.Add(player, entry);
+                    }
+
+                    if (entry.Component == null)
+                        continue;
+
+                    bool downed = player.PlayerStats != null && player.PlayerStats.NetworkisDead;
+                    entry.Component.OutlineMode = _outlinesThroughWalls.Value
+                        ? QuickOutline.Mode.OutlineAll
+                        : QuickOutline.Mode.OutlineVisible;
+                    entry.Component.OutlineColor = downed
+                        ? new Color(1f, 0.34f, 0.36f, 1f)
+                        : new Color(0.24f, 0.88f, 0.96f, 1f);
+                    entry.Component.OutlineWidth = Mathf.Clamp(_outlineWidth.Value, 0.5f, 6f);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (Time.unscaledTime >= _nextWarning)
+                {
+                    Logger.LogWarning("Could not update teammate outlines: " + ex);
+                    _nextWarning = Time.unscaledTime + 10f;
+                }
+            }
+        }
+
+        private void RemoveOutline(FirstPersonController player)
+        {
+            OutlineEntry entry;
+            if (_teamOutlines.TryGetValue(player, out entry))
+            {
+                if (entry.Component != null)
+                    Destroy(entry.Component);
+                _teamOutlines.Remove(player);
+            }
+        }
+
+        private void RemoveAllOutlines()
+        {
+            if (_teamOutlines.Count == 0)
+                return;
+
+            foreach (var entry in _teamOutlines.Values)
+                if (entry.Component != null)
+                    Destroy(entry.Component);
+            _teamOutlines.Clear();
+            _expiredOutlines.Clear();
         }
 
         private void OnGUI()
