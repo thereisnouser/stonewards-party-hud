@@ -18,7 +18,7 @@ The package declares BepInExPack as a required dependency. **No .NET SDK, termin
 
 The panel defaults to the upper-left corner, below the game's player-name list, and hides while the Shop, Character Selection, Missions, or Upgrade Offers menu is open (Inventory hiding is being tested for v0.1.1). Position (`Appearance.Anchor`, `TopOffset`, `BottomOffset`, `AvoidNativePlayerNames`), size (`Scale`, `ReadabilityScale`, `AutoScaleToResolution`) and Hunter companion display can be configured in `BepInEx/config/community.stonewards.partyhud.cfg`.
 
-The upcoming v0.1.1 build adds a compact **local-player-only** stamina and optional mana row (`ShowLocalResources`) and restores an optional defensive wall HP row (`General.ShowWallHealth`, enabled by default). Stonewards does not synchronize teammates' current stamina or mana.
+The upcoming v0.1.1 build restores an optional defensive wall HP row (`General.ShowWallHealth`, enabled by default). Stamina and mana are deliberately omitted from the party panel: Stonewards does not synchronize teammates' current resource values.
 
 ## Development
 
