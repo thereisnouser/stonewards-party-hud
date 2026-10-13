@@ -21,6 +21,7 @@ namespace StonewardsPartyHUD
         private const float RowHeight = 67f;
         private const float CompanionRowHeight = 38f;
         private const float LocalResourceRowHeight = 39f;
+        private const float WallRowHeight = 66f;
         private const float FooterPadding = 8f;
         private const float BottomHudSafeZone = 132f;
         private const float NativeRosterHeaderSafeZone = 130f;
@@ -66,6 +67,7 @@ namespace StonewardsPartyHUD
         private ConfigEntry<bool> _autoScaleToResolution;
         private ConfigEntry<bool> _showCompanionHealth;
         private ConfigEntry<bool> _showLocalResources;
+        private ConfigEntry<bool> _showWallHealth;
         private ConfigEntry<bool> _showTeammateOutlines;
         private ConfigEntry<bool> _showPlayerNames;
         private ConfigEntry<float> _playerNameVerticalOffset;
@@ -77,6 +79,12 @@ namespace StonewardsPartyHUD
         private ConfigEntry<int> _bottomOffset;
         private ConfigEntry<PanelAnchor> _anchor;
         private float _nextRefresh;
+        private float _nextWallRefresh;
+        private bool _hasWall;
+        private float _wallHealth;
+        private float _wallMaxHealth;
+        private int _wallSections;
+        private bool _wallBreached;
         private float _nextWarning;
         private GUIStyle _headingStyle;
         private GUIStyle _countStyle;
@@ -89,6 +97,7 @@ namespace StonewardsPartyHUD
         private GUIStyle _alertStyle;
         private GUIStyle _worldNameStyle;
         private GUIStyle _resourceStyle;
+        private GUIStyle _wallStatusStyle;
 
         private sealed class PlayerEntry
         {
@@ -140,6 +149,8 @@ namespace StonewardsPartyHUD
                 "Show a Hunter's companion health directly below the Hunter's entry.");
             _showLocalResources = Config.Bind("Appearance", "ShowLocalResources", true,
                 "Show current stamina and class-dependent mana below YOUR player row only. These values are not replicated for remote teammates.");
+            _showWallHealth = Config.Bind("General", "ShowWallHealth", true,
+                "Show combined defensive wall durability beneath the party roster.");
             _showTeammateOutlines = Config.Bind("TeammateOutlines", "Enabled", true,
                 "Outline remote teammates in the world (never the local player).");
             _showPlayerNames = Config.Bind("TeammateOutlines", "ShowPlayerNames", true,
@@ -176,6 +187,7 @@ namespace StonewardsPartyHUD
 
             _nextRefresh = Time.unscaledTime + RefreshSeconds;
             RefreshRoster();
+            RefreshWallHealth();
             UpdateTeammateOutlines();
         }
 
@@ -293,6 +305,56 @@ namespace StonewardsPartyHUD
                 if (Time.unscaledTime >= _nextWarning)
                 {
                     Logger.LogWarning("Could not read party state: " + ex);
+                    _nextWarning = Time.unscaledTime + 10f;
+                }
+            }
+        }
+
+        private void RefreshWallHealth()
+        {
+            if (Time.unscaledTime < _nextWallRefresh)
+                return;
+
+            _nextWallRefresh = Time.unscaledTime + 1f;
+            _hasWall = false;
+            _wallHealth = 0f;
+            _wallMaxHealth = 0f;
+            _wallSections = 0;
+            _wallBreached = false;
+
+            if (!_showWallHealth.Value)
+                return;
+
+            try
+            {
+                // WallStats exposes the defensive sections' Mirror SyncVars.
+                // Aggregate active network sections instead of choosing an
+                // arbitrary one that might not represent total durability.
+                var walls = UnityEngine.Object.FindObjectsByType<WallStats>(FindObjectsSortMode.None);
+                for (int i = 0; i < walls.Length; i++)
+                {
+                    var wall = walls[i];
+                    if (wall == null || !wall.isActiveAndEnabled || !wall.isClient)
+                        continue;
+
+                    float maximum = wall.NetworkcurrentMaxHealth;
+                    if (maximum <= 0f)
+                        continue;
+
+                    _wallHealth += Mathf.Clamp(wall.NetworkcurrentHealth, 0f, maximum);
+                    _wallMaxHealth += maximum;
+                    _wallSections++;
+                    _wallBreached |= wall.NetworkisDestroyed;
+                }
+
+                _hasWall = _wallSections > 0 && _wallMaxHealth > 0f;
+            }
+            catch (Exception ex)
+            {
+                _hasWall = false;
+                if (Time.unscaledTime >= _nextWarning)
+                {
+                    Logger.LogWarning("Could not read wall health: " + ex);
                     _nextWarning = Time.unscaledTime + 10f;
                 }
             }
@@ -686,6 +748,8 @@ namespace StonewardsPartyHUD
             DrawTeammatePlayerNames();
 
             float height = HeaderHeight + _players.Count * RowHeight + FooterPadding;
+            if (_hasWall)
+                height += WallRowHeight;
             for (int i = 0; i < _players.Count; i++)
             {
                 if (_players[i].HasStamina)
@@ -784,6 +848,8 @@ namespace StonewardsPartyHUD
                 }
             }
 
+            if (_hasWall)
+                DrawWallHealth(x, rowY);
         }
 
         private void DrawPlayer(float x, float rowY, PlayerEntry player, int index)
@@ -917,6 +983,46 @@ namespace StonewardsPartyHUD
             }
         }
 
+        private void DrawWallHealth(float x, float rowY)
+        {
+            // Group defensive wall sections below the team, never as a player.
+            Fill(new Rect(x + 4f, rowY, PanelWidth - 8f, WallRowHeight),
+                new Color(0.34f, 0.24f, 0.11f, 0.28f));
+            Fill(new Rect(x + 12f, rowY + 11f, 4f, WallRowHeight - 19f),
+                _wallBreached ? new Color(1f, 0.34f, 0.38f)
+                             : new Color(0.97f, 0.73f, 0.35f));
+
+            string title = _wallSections > 1
+                ? "WALL TOTAL (" + _wallSections + ")" : "WALL";
+            GUI.Label(new Rect(x + 23f, rowY + 5f, 190f, 26f),
+                title, _nameStyle);
+
+            string hp = Mathf.CeilToInt(Mathf.Max(0f, _wallHealth)) + " / " +
+                Mathf.CeilToInt(_wallMaxHealth);
+            GUI.Label(new Rect(x + 229f, rowY + 6f, 115f, 26f),
+                hp, _healthStyle);
+
+            _wallStatusStyle.normal.textColor = _wallBreached
+                ? new Color(1f, 0.49f, 0.47f)
+                : new Color(0.95f, 0.81f, 0.56f);
+            GUI.Label(new Rect(x + 23f, rowY + 30f, 250f, 17f),
+                _wallBreached ? "BREACHED - REPAIR" : "DEFENSE", _wallStatusStyle);
+
+            const float barWidth = 321f;
+            Fill(new Rect(x + 23f, rowY + 51f, barWidth, 9f),
+                new Color(0.21f, 0.26f, 0.29f));
+            float fraction = Mathf.Clamp01(_wallHealth / _wallMaxHealth);
+            if (fraction > 0f)
+            {
+                Color color = fraction > 0.65f
+                    ? new Color(0.95f, 0.73f, 0.33f)
+                    : fraction > 0.3f
+                        ? new Color(0.95f, 0.53f, 0.26f)
+                        : new Color(0.97f, 0.30f, 0.31f);
+                Fill(new Rect(x + 23f, rowY + 51f, barWidth * fraction, 9f), color);
+            }
+        }
+
         private static void Fill(Rect rect, Color color)
         {
             Color previous = GUI.color;
@@ -941,6 +1047,7 @@ namespace StonewardsPartyHUD
             _alertStyle = MakeStyle(12, new Color(1f, 0.40f, 0.44f), TextAnchor.MiddleRight, true);
             _worldNameStyle = MakeStyle(12, Color.white, TextAnchor.MiddleCenter, true);
             _resourceStyle = MakeStyle(12, Color.white, TextAnchor.MiddleLeft, true);
+            _wallStatusStyle = MakeStyle(12, Color.white, TextAnchor.MiddleLeft, true);
         }
 
         private static GUIStyle MakeStyle(int size, Color color, TextAnchor align, bool bold = false)
