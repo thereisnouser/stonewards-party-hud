@@ -1,43 +1,25 @@
 # Stonewards Party HUD
 
-A lightweight, client-side multiplayer HUD for **Stonewards**. Shows every connected player's name, class, current/max health and downed state in one persistent panel.
+A lightweight, client-side party overlay for **Stonewards**. See connected players' names, classes, current/max health, and downed state without searching the battlefield.
 
-> **Status:** 0.1.0-alpha (source preview). Not yet compiled or verified in-game. Compatibility with multiplayer sessions must be tested.
+> **Status:** Source-only alpha. Not built, tested in multiplayer, or published to Thunderstore yet.
 
-## Requirements
+## Installation (planned for the first tested release)
 
-- Stonewards for Windows (Unity Mono build)
-- BepInEx 5 (Windows x64), installed in the game directory
-- .NET SDK with support for `netstandard2.1` and PowerShell (to build)
+1. Install [r2modman](https://thunderstore.io/c/stonewards/p/ebkr/r2modman/) or another compatible Thunderstore manager and choose **Stonewards**.
+2. Find **PartyHUD** in the mod browser and click **Download**.
+3. Use **Start modded** to launch the game.
 
-## Build and install
+The manager will install the required BepInEx dependency automatically. **No .NET SDK, terminal or manual DLL copying will be needed.**
 
-1. Install BepInEx 5 and launch/close the game once.
-2. Close Stonewards and open PowerShell in this repository.
-3. Run:
+**The mod is not available in the manager yet.** These steps become applicable only after the first tested package is published.
 
-   ```powershell
-   .\build-and-install.ps1 -GameDir "C:\path\to\Steam\steamapps\common\StoneWards"
-   ```
+## Development
 
-4. Launch the game and join a session.
+For local source builds and installation see [Developer setup](docs/DEVELOPMENT.md). The mod is intended to read locally available multiplayer data without modifying game state or sending network messages.
 
-Uninstall: remove `BepInEx/plugins/StonewardsPartyHUD/`.
+Track readiness and upcoming features in [GitHub Issues](https://github.com/thereisnouser/stonewards-party-hud/issues).
 
-## Configuration
+## License
 
-On first launch, BepInEx generates `BepInEx/config/community.stonewards.partyhud.cfg`. Available settings:
-
-- `General.Enabled` — show or hide the HUD
-- `Appearance.Scale` — scale the panel (0.65–1.8)
-- `Appearance.LeftOffset` and `Appearance.BottomOffset` — panel position
-
-Restart the game after changing settings.
-
-## Project
-
-The mod reads client-available game state without modifying gameplay or sending network messages. No game assemblies or third-party binaries are distributed.
-
-For current progress, known limitations and next steps, see [GitHub Issues](https://github.com/thereisnouser/stonewards-party-hud/issues).
-
-MIT-licensed. See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Third-party and proprietary game binaries are not redistributed.
