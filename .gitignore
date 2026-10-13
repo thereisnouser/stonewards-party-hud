@@ -7,3 +7,4 @@ obj/
 *.log
 *.dll
 *.pdb
+/dist/
