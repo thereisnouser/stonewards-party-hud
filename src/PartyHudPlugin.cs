@@ -20,7 +20,6 @@ namespace StonewardsPartyHUD
         private const float HeaderHeight = 40f;
         private const float RowHeight = 67f;
         private const float CompanionRowHeight = 38f;
-        private const float LocalResourceRowHeight = 39f;
         private const float WallRowHeight = 66f;
         private const float FooterPadding = 8f;
         private const float BottomHudSafeZone = 132f;
@@ -45,13 +44,6 @@ namespace StonewardsPartyHUD
         private static readonly FieldInfo InventoryRootField =
             typeof(InventoryScreen).GetField("inventoryScreen",
                 BindingFlags.Instance | BindingFlags.NonPublic);
-        // Local-only in Stonewards v0.2.3; never read for remote teammates.
-        private static readonly FieldInfo CurrentStaminaField =
-            typeof(PlayerStats).GetField("currentStamina",
-                BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo CurrentManaField =
-            typeof(PlayerStats).GetField("currentMana",
-                BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo CharacterVisualsParentField =
             typeof(FirstPersonController).GetField("characterVisualsParent",
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -66,7 +58,6 @@ namespace StonewardsPartyHUD
         private ConfigEntry<float> _readabilityScale;
         private ConfigEntry<bool> _autoScaleToResolution;
         private ConfigEntry<bool> _showCompanionHealth;
-        private ConfigEntry<bool> _showLocalResources;
         private ConfigEntry<bool> _showWallHealth;
         private ConfigEntry<bool> _showTeammateOutlines;
         private ConfigEntry<bool> _showPlayerNames;
@@ -96,7 +87,6 @@ namespace StonewardsPartyHUD
         private GUIStyle _companionStyle;
         private GUIStyle _alertStyle;
         private GUIStyle _worldNameStyle;
-        private GUIStyle _resourceStyle;
         private GUIStyle _wallStatusStyle;
 
         private sealed class PlayerEntry
@@ -110,13 +100,6 @@ namespace StonewardsPartyHUD
             public float MaxHealth;
             public bool HasStats;
             public bool IsDead;
-            public bool IsLocal;
-            public bool HasStamina;
-            public float Stamina;
-            public float MaxStamina;
-            public bool HasMana;
-            public float Mana;
-            public float MaxMana;
             public CompanionEntry Companion;
         }
 
@@ -147,8 +130,6 @@ namespace StonewardsPartyHUD
                 "Scale down the panel on screens below 1920x1080; manual Scale and ReadabilityScale remain available.");
             _showCompanionHealth = Config.Bind("Appearance", "ShowCompanionHealth", true,
                 "Show a Hunter's companion health directly below the Hunter's entry.");
-            _showLocalResources = Config.Bind("Appearance", "ShowLocalResources", true,
-                "Show current stamina and class-dependent mana below YOUR player row only. These values are not replicated for remote teammates.");
             _showWallHealth = Config.Bind("General", "ShowWallHealth", true,
                 "Show combined defensive wall durability beneath the party roster.");
             _showTeammateOutlines = Config.Bind("TeammateOutlines", "Enabled", true,
@@ -225,8 +206,7 @@ namespace StonewardsPartyHUD
                         ClassName = playerClass.ToString(),
                         Badge = ClassBadge(playerClass),
                         ClassIcon = FindClassIcon(player, playerClass),
-                        Accent = ClassColor(playerClass),
-                        IsLocal = player.isLocalPlayer
+                        Accent = ClassColor(playerClass)
                     };
 
                     var stats = player.PlayerStats;
@@ -236,31 +216,6 @@ namespace StonewardsPartyHUD
                         entry.Health = stats.GetCurrentHealth();
                         entry.MaxHealth = stats.NetworksyncMaxHealth;
                         entry.IsDead = stats.NetworkisDead;
-
-                        // Only the local player owns up-to-date resource data;
-                        // Mirror sync includes health, not stamina or mana.
-                        if (entry.IsLocal && _showLocalResources.Value)
-                        {
-                            if (CurrentStaminaField != null && stats.MaxStamina != null)
-                            {
-                                entry.MaxStamina = stats.MaxStamina.Value;
-                                entry.HasStamina = entry.MaxStamina > 0f;
-                                if (entry.HasStamina)
-                                    entry.Stamina = Mathf.Clamp(
-                                        (float)CurrentStaminaField.GetValue(stats), 0f, entry.MaxStamina);
-                            }
-
-                            var archetype = player.PlayerArchetypeSO;
-                            if (archetype != null && archetype.HasManaBar &&
-                                CurrentManaField != null && stats.MaxMana != null)
-                            {
-                                entry.MaxMana = stats.MaxMana.Value;
-                                entry.HasMana = entry.MaxMana > 0f;
-                                if (entry.HasMana)
-                                    entry.Mana = Mathf.Clamp(
-                                        (float)CurrentManaField.GetValue(stats), 0f, entry.MaxMana);
-                            }
-                        }
                     }
 
                     if (_showCompanionHealth.Value && playerClass == PlayerClass.HUNTER)
@@ -751,12 +706,8 @@ namespace StonewardsPartyHUD
             if (_hasWall)
                 height += WallRowHeight;
             for (int i = 0; i < _players.Count; i++)
-            {
-                if (_players[i].HasStamina)
-                    height += LocalResourceRowHeight;
                 if (_players[i].Companion != null)
                     height += CompanionRowHeight;
-            }
 
             // Match current sizing at 1920x1080, adapt below it, and avoid
             // inflating the panel beyond user settings on larger displays.
@@ -836,11 +787,6 @@ namespace StonewardsPartyHUD
             {
                 DrawPlayer(x, rowY, _players[i], i);
                 rowY += RowHeight;
-                if (_players[i].HasStamina)
-                {
-                    DrawLocalResources(x, rowY, _players[i]);
-                    rowY += LocalResourceRowHeight;
-                }
                 if (_players[i].Companion != null)
                 {
                     DrawCompanion(x, rowY, _players[i].Companion);
@@ -909,42 +855,6 @@ namespace StonewardsPartyHUD
 
             Fill(new Rect(x + 14f, rowY + RowHeight - 1f, PanelWidth - 28f, 1f),
                 new Color(0.34f, 0.50f, 0.56f, 0.14f));
-        }
-
-        private void DrawLocalResources(float x, float rowY, PlayerEntry player)
-        {
-            // Do not guess teammate stamina/mana from unrelated client state.
-            Fill(new Rect(x + 52f, rowY, PanelWidth - 60f, LocalResourceRowHeight),
-                new Color(0.15f, 0.23f, 0.32f, 0.35f));
-
-            if (player.HasMana)
-            {
-                DrawLocalResourceBar(x + 62f, rowY, 133f,
-                    "STAMINA", player.Stamina, player.MaxStamina,
-                    new Color(0.99f, 0.75f, 0.31f));
-                DrawLocalResourceBar(x + 206f, rowY, 138f,
-                    "MANA", player.Mana, player.MaxMana,
-                    new Color(0.34f, 0.60f, 1f));
-            }
-            else
-                DrawLocalResourceBar(x + 62f, rowY, 282f,
-                    "STAMINA", player.Stamina, player.MaxStamina,
-                    new Color(0.99f, 0.75f, 0.31f));
-        }
-
-        private void DrawLocalResourceBar(float left, float top, float width,
-            string title, float value, float maximum, Color color)
-        {
-            _resourceStyle.normal.textColor = new Color(0.83f, 0.90f, 0.96f);
-            GUI.Label(new Rect(left, top + 2f, width, 20f),
-                title + " " + Mathf.CeilToInt(value) + " / " +
-                Mathf.CeilToInt(maximum), _resourceStyle);
-
-            Fill(new Rect(left, top + 27f, width, 6f),
-                new Color(0.16f, 0.22f, 0.29f));
-            if (maximum > 0f && value > 0f)
-                Fill(new Rect(left, top + 27f,
-                    width * Mathf.Clamp01(value / maximum), 6f), color);
         }
 
         private void DrawCompanion(float x, float rowY, CompanionEntry companion)
@@ -1046,7 +956,6 @@ namespace StonewardsPartyHUD
             _companionStyle = MakeStyle(13, Color.white, TextAnchor.MiddleLeft, true);
             _alertStyle = MakeStyle(12, new Color(1f, 0.40f, 0.44f), TextAnchor.MiddleRight, true);
             _worldNameStyle = MakeStyle(12, Color.white, TextAnchor.MiddleCenter, true);
-            _resourceStyle = MakeStyle(12, Color.white, TextAnchor.MiddleLeft, true);
             _wallStatusStyle = MakeStyle(12, Color.white, TextAnchor.MiddleLeft, true);
         }
 
