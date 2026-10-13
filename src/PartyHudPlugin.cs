@@ -28,15 +28,13 @@ namespace StonewardsPartyHUD
         private const float ReferenceScreenWidth = 1920f;
         private const float ReferenceScreenHeight = 1080f;
 
-        // Inspired by Stonewards' dark inventory windows, burgundy headers
-        // and warm metallic trim. Do not change gameplay-world outline colors.
-        private static readonly Color PanelFrame = new Color(0.68f, 0.55f, 0.36f, 0.97f);
-        private static readonly Color PanelInset = new Color(0.16f, 0.12f, 0.12f, 0.98f);
-        private static readonly Color PanelBackground = new Color(0.075f, 0.076f, 0.09f, 0.96f);
-        private static readonly Color PanelHeader = new Color(0.32f, 0.17f, 0.18f, 0.98f);
-        private static readonly Color PanelTrim = new Color(0.78f, 0.64f, 0.42f, 0.95f);
-        private static readonly Color PanelDivider = new Color(0.56f, 0.43f, 0.31f, 0.28f);
-        private static readonly Color BarTrack = new Color(0.17f, 0.14f, 0.14f, 1f);
+        // Native Stonewards UI colors sampled from Shop and Character Selection.
+        private static readonly Color PanelFrame = new Color(0.72f, 0.64f, 0.48f);
+        private static readonly Color PanelBackground = new Color(19f / 255f, 23f / 255f, 32f / 255f, 0.97f);
+        private static readonly Color PanelHeader = new Color(76f / 255f, 46f / 255f, 48f / 255f);
+        private static readonly Color PanelDivider = new Color(0.71f, 0.63f, 0.48f, 0.38f);
+        private static readonly Color SlotBackground = new Color(0.25f, 0.32f, 0.38f);
+        private static readonly Color BarTrack = new Color(0.16f, 0.18f, 0.20f, 1f);
 
         private enum PanelAnchor
         {
@@ -98,6 +96,8 @@ namespace StonewardsPartyHUD
         private GUIStyle _alertStyle;
         private GUIStyle _worldNameStyle;
         private GUIStyle _wallStatusStyle;
+        private Font _nativeUiFont;
+        private float _nextNativeFontLookup;
 
         private sealed class PlayerEntry
         {
@@ -772,19 +772,8 @@ namespace StonewardsPartyHUD
 
         private void DrawPanel(float x, float y, float height)
         {
-            // A narrow gold frame and a burgundy header echo the game's
-            // native Inventory / Stats windows without adding image assets.
-            Fill(new Rect(x, y, PanelWidth, height), PanelFrame);
-            Fill(new Rect(x + 2f, y + 2f, PanelWidth - 4f, height - 4f), PanelInset);
-            Fill(new Rect(x + 3f, y + 3f, PanelWidth - 6f, height - 6f), PanelBackground);
-            Fill(new Rect(x + 3f, y + 3f, PanelWidth - 6f, HeaderHeight - 5f),
-                PanelHeader);
-            Fill(new Rect(x + 3f, y + HeaderHeight - 3f, PanelWidth - 6f, 2f),
-                PanelTrim);
-            Fill(new Rect(x + 14f, y + HeaderHeight - 6f, 49f, 2f),
-                new Color(0.97f, 0.83f, 0.56f, 0.86f));
-
-            GUI.Label(new Rect(x + 15f, y + 7f, 171f, 27f),
+            DrawStonewardsWindow(x, y, PanelWidth, height);
+            GUI.Label(new Rect(x + 58f, y + 6f, PanelWidth - 116f, 29f),
                 "PARTY STATUS", _headingStyle);
 
             int downed = 0;
@@ -793,10 +782,10 @@ namespace StonewardsPartyHUD
                     downed++;
 
             if (downed > 0)
-                GUI.Label(new Rect(x + 165f, y + 11f, 83f, 20f),
+                GUI.Label(new Rect(x + 12f, y + 11f, 86f, 21f),
                     downed + " DOWN", _alertStyle);
-            GUI.Label(new Rect(x + 252f, y + 11f, 91f, 20f),
-                _players.Count + " PLAYER" + (_players.Count == 1 ? "" : "S"), _countStyle);
+            GUI.Label(new Rect(x + 262f, y + 11f, 82f, 20f),
+                _players.Count + " / 4", _countStyle);
 
             float rowY = y + HeaderHeight;
             for (int i = 0; i < _players.Count; i++)
@@ -809,9 +798,33 @@ namespace StonewardsPartyHUD
                     rowY += CompanionRowHeight;
                 }
             }
-
             if (_hasWall)
                 DrawWallHealth(x, rowY);
+        }
+
+        private static void DrawStonewardsWindow(float x, float y, float width, float height)
+        {
+            // Pixel-stepped corners as in the game's own windows.
+            // All geometry is generated at runtime; no game assets distributed.
+            Fill(new Rect(x + 7f, y, width - 14f, height), PanelBackground);
+            Fill(new Rect(x, y + 7f, width, height - 14f), PanelBackground);
+            Fill(new Rect(x + 7f, y + 2f, width - 14f, HeaderHeight - 2f), PanelHeader);
+            Fill(new Rect(x + 2f, y + 7f, width - 4f, HeaderHeight - 7f), PanelHeader);
+
+            const float edge = 2f;
+            Fill(new Rect(x + 8f, y, width - 16f, edge), PanelFrame);
+            Fill(new Rect(x + 5f, y + 2f, 3f, edge), PanelFrame);
+            Fill(new Rect(x + 2f, y + 5f, 3f, edge), PanelFrame);
+            Fill(new Rect(x, y + 7f, edge, height - 14f), PanelFrame);
+            Fill(new Rect(x + width - edge, y + 7f, edge, height - 14f), PanelFrame);
+            Fill(new Rect(x + width - 5f, y + 5f, 3f, edge), PanelFrame);
+            Fill(new Rect(x + width - 8f, y + 2f, 3f, edge), PanelFrame);
+            Fill(new Rect(x + 8f, y + height - edge, width - 16f, edge), PanelFrame);
+            Fill(new Rect(x + 5f, y + height - 4f, 3f, edge), PanelFrame);
+            Fill(new Rect(x + 2f, y + height - 7f, 3f, edge), PanelFrame);
+            Fill(new Rect(x + width - 5f, y + height - 7f, 3f, edge), PanelFrame);
+            Fill(new Rect(x + width - 8f, y + height - 4f, 3f, edge), PanelFrame);
+            Fill(new Rect(x + 2f, y + HeaderHeight - 1f, width - 4f, 1f), PanelFrame);
         }
 
         private void DrawPlayer(float x, float rowY, PlayerEntry player, int index)
@@ -821,15 +834,14 @@ namespace StonewardsPartyHUD
                     new Color(0.48f, 0.12f, 0.14f, 0.36f));
             else if (index % 2 == 1)
                 Fill(new Rect(x + 3f, rowY, PanelWidth - 6f, RowHeight),
-                    new Color(0.45f, 0.29f, 0.19f, 0.14f));
+                    new Color(0.30f, 0.33f, 0.39f, 0.14f));
 
             Fill(new Rect(x + 6f, rowY + 8f, 3f, 51f),
                 player.IsDead ? new Color(0.94f, 0.31f, 0.32f) : player.Accent);
             var iconSlot = new Rect(x + 14f, rowY + 11f, 38f, 39f);
-            Fill(iconSlot, new Color(0.52f, 0.42f, 0.30f, 0.68f));
-            Fill(new Rect(iconSlot.x + 1f, iconSlot.y + 1f,
-                iconSlot.width - 2f, iconSlot.height - 2f),
-                new Color(0.13f, 0.12f, 0.13f, 0.98f));
+            Fill(iconSlot, new Color(0.90f, 0.86f, 0.79f));
+            Fill(new Rect(iconSlot.x + 2f, iconSlot.y + 2f,
+                iconSlot.width - 4f, iconSlot.height - 4f), SlotBackground);
             if (!DrawClassIcon(player.ClassIcon, new Rect(iconSlot.x + 3f,
                 iconSlot.y + 3f, iconSlot.width - 6f, iconSlot.height - 6f)))
             {
@@ -853,7 +865,7 @@ namespace StonewardsPartyHUD
                 player.ClassName, _classStyle);
             _statusStyle.normal.textColor = player.IsDead
                 ? new Color(1f, 0.52f, 0.50f)
-                : new Color(0.78f, 0.71f, 0.57f);
+                : new Color(0.89f, 0.83f, 0.72f);
             GUI.Label(new Rect(x + 180f, rowY + 30f, 164f, 17f),
                 player.IsDead ? "DOWN - REVIVE" : "ALIVE", _statusStyle);
 
@@ -881,7 +893,7 @@ namespace StonewardsPartyHUD
             bool down = companion.IsKnockedOut;
             Fill(new Rect(x + 52f, rowY, PanelWidth - 60f, CompanionRowHeight),
                 down ? new Color(0.53f, 0.12f, 0.16f, 0.30f)
-                     : new Color(0.42f, 0.31f, 0.19f, 0.20f));
+                     : new Color(0.30f, 0.36f, 0.42f, 0.19f));
             Fill(new Rect(x + 59f, rowY + 4f, 2f, CompanionRowHeight - 9f),
                 down ? new Color(1f, 0.37f, 0.43f) : new Color(0.44f, 0.76f, 0.52f));
 
@@ -915,7 +927,7 @@ namespace StonewardsPartyHUD
         {
             // Group defensive wall sections below the team, never as a player.
             Fill(new Rect(x + 4f, rowY, PanelWidth - 8f, WallRowHeight),
-                new Color(0.49f, 0.33f, 0.16f, 0.23f));
+                new Color(0.30f, 0.34f, 0.39f, 0.19f));
             Fill(new Rect(x + 12f, rowY, PanelWidth - 24f, 1f),
                 PanelDivider);
             Fill(new Rect(x + 12f, rowY + 11f, 4f, WallRowHeight - 19f),
@@ -962,30 +974,70 @@ namespace StonewardsPartyHUD
 
         private void EnsureStyles()
         {
-            if (_headingStyle != null)
-                return;
+            if (_headingStyle == null)
+            {
+                _headingStyle = MakeStyle(19, new Color(0.98f, 0.79f, 0.51f),
+                    TextAnchor.MiddleCenter, true);
+                _countStyle = MakeStyle(12, new Color(0.92f, 0.85f, 0.75f),
+                    TextAnchor.MiddleRight, true);
+                _nameStyle = MakeStyle(16, Color.white, TextAnchor.MiddleLeft, true);
+                _classStyle = MakeStyle(12, new Color(0.82f, 0.83f, 0.86f),
+                    TextAnchor.MiddleLeft, true);
+                _badgeStyle = MakeStyle(14, Color.white, TextAnchor.MiddleCenter, true);
+                _healthStyle = MakeStyle(13, Color.white, TextAnchor.MiddleRight, true);
+                _statusStyle = MakeStyle(12, Color.white, TextAnchor.MiddleRight, true);
+                _companionStyle = MakeStyle(13, Color.white, TextAnchor.MiddleLeft, true);
+                _alertStyle = MakeStyle(12, new Color(1f, 0.49f, 0.45f),
+                    TextAnchor.MiddleLeft, true);
+                _worldNameStyle = MakeStyle(12, Color.white, TextAnchor.MiddleCenter, true);
+                _wallStatusStyle = MakeStyle(12, new Color(0.98f, 0.79f, 0.51f),
+                    TextAnchor.MiddleLeft, true);
+            }
+            TryApplyNativeFont();
+        }
 
-            _headingStyle = MakeStyle(17, new Color(0.99f, 0.83f, 0.56f),
-                TextAnchor.MiddleLeft, true);
-            _countStyle = MakeStyle(12, new Color(0.90f, 0.77f, 0.59f),
-                TextAnchor.MiddleRight, true);
-            _nameStyle = MakeStyle(16, new Color(0.97f, 0.93f, 0.85f),
-                TextAnchor.MiddleLeft, true);
-            _classStyle = MakeStyle(12, new Color(0.78f, 0.69f, 0.55f),
-                TextAnchor.MiddleLeft, true);
-            _badgeStyle = MakeStyle(14, Color.white, TextAnchor.MiddleCenter, true);
-            _healthStyle = MakeStyle(13, new Color(0.97f, 0.93f, 0.85f),
-                TextAnchor.MiddleRight, true);
-            _statusStyle = MakeStyle(12, Color.white, TextAnchor.MiddleRight, true);
-            _companionStyle = MakeStyle(13, new Color(0.87f, 0.79f, 0.64f),
-                TextAnchor.MiddleLeft, true);
-            _alertStyle = MakeStyle(12, new Color(1f, 0.50f, 0.45f),
-                TextAnchor.MiddleRight, true);
-            // World nickname contrast is unchanged: labels must stay readable
-            // through bright outdoor scenery and dark caves.
-            _worldNameStyle = MakeStyle(12, Color.white, TextAnchor.MiddleCenter, true);
-            _wallStatusStyle = MakeStyle(12, new Color(0.95f, 0.81f, 0.56f),
-                TextAnchor.MiddleLeft, true);
+        private void TryApplyNativeFont()
+        {
+            if (_nativeUiFont != null || Time.unscaledTime < _nextNativeFontLookup)
+                return;
+            // The UnityEngine.Font resources are present in Stonewards.
+            _nextNativeFontLookup = Time.unscaledTime + 8f;
+            Font preferred = null;
+            Font fallback = null;
+            foreach (var font in Resources.FindObjectsOfTypeAll<Font>())
+            {
+                if (font == null)
+                    continue;
+                if (font.name == "Jersey10-Regular")
+                    preferred = font;
+                else if (font.name == "Jersey10-Regular2")
+                    fallback = font;
+            }
+            _nativeUiFont = preferred != null ? preferred : fallback;
+            if (_nativeUiFont == null)
+                return;
+            GUIStyle[] styles =
+            {
+                _headingStyle, _countStyle, _nameStyle, _classStyle,
+                _badgeStyle, _healthStyle, _statusStyle, _companionStyle,
+                _alertStyle, _wallStatusStyle
+            };
+            foreach (var style in styles)
+            {
+                style.font = _nativeUiFont;
+                style.fontStyle = FontStyle.Normal;
+            }
+            _headingStyle.fontSize = 24;
+            _countStyle.fontSize = 16;
+            _nameStyle.fontSize = 20;
+            _classStyle.fontSize = 15;
+            _badgeStyle.fontSize = 17;
+            _healthStyle.fontSize = 16;
+            _statusStyle.fontSize = 15;
+            _companionStyle.fontSize = 16;
+            _alertStyle.fontSize = 15;
+            _wallStatusStyle.fontSize = 16;
+            Logger.LogInfo("Party HUD is using Stonewards UI font: " + _nativeUiFont.name);
         }
 
         private static GUIStyle MakeStyle(int size, Color color, TextAnchor align, bool bold = false)
