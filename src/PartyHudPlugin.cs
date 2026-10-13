@@ -41,6 +41,7 @@ namespace StonewardsPartyHUD
         private ConfigEntry<bool> _showCompanionHealth;
         private ConfigEntry<bool> _showTeammateOutlines;
         private ConfigEntry<bool> _showClassLabels;
+        private ConfigEntry<float> _classLabelVerticalOffset;
         private ConfigEntry<bool> _outlinesThroughWalls;
         private ConfigEntry<float> _outlineWidth;
         private ConfigEntry<int> _leftOffset;
@@ -99,7 +100,9 @@ namespace StonewardsPartyHUD
             _showTeammateOutlines = Config.Bind("TeammateOutlines", "Enabled", true,
                 "Outline remote teammates in the world (never the local player).");
             _showClassLabels = Config.Bind("TeammateOutlines", "ShowClassLabels", true,
-                "Show each remote teammate's class above their outlined character.");
+                "Show each remote teammate's class below the game's native name tag.");
+            _classLabelVerticalOffset = Config.Bind("TeammateOutlines", "ClassLabelVerticalOffset", 14f,
+                "Pixels below the projected top of the teammate model (0 - 80); positive values move class labels down.");
             _outlinesThroughWalls = Config.Bind("TeammateOutlines", "ThroughWalls", true,
                 "Show teammate silhouettes even when they are behind obstacles.");
             _outlineWidth = Config.Bind("TeammateOutlines", "Width", 3.0f,
@@ -421,23 +424,17 @@ namespace StonewardsPartyHUD
 
                     Vector3 head = new Vector3(bounds.center.x,
                         bounds.max.y + 0.12f, bounds.center.z);
-                    Vector3 feet = new Vector3(bounds.center.x,
-                        bounds.min.y, bounds.center.z);
                     Vector3 projectedHead = camera.WorldToScreenPoint(head);
                     if (projectedHead.z <= 0f)
                         continue;
 
-                    Vector3 projectedFeet = camera.WorldToScreenPoint(feet);
-                    float visibleHeight = projectedFeet.z > 0f
-                        ? Mathf.Abs(projectedHead.y - projectedFeet.y)
-                        : 0f;
-
-                    // Keep clear of Stonewards' existing name tag above heads.
-                    const float labelWidth = 126f;
-                    const float labelHeight = 24f;
-                    float headGap = Mathf.Clamp(visibleHeight * 0.20f, 24f, 52f);
+                    // Native names sit above character heads. Anchor our compact
+                    // class badge *below* the projected head to avoid obscuring them.
+                    const float labelWidth = 116f;
+                    const float labelHeight = 20f;
                     float left = projectedHead.x - labelWidth * 0.5f;
-                    float top = Screen.height - projectedHead.y - headGap - labelHeight;
+                    float top = Screen.height - projectedHead.y +
+                        Mathf.Clamp(_classLabelVerticalOffset.Value, 0f, 80f);
 
                     // No stuck labels when a teammate moves outside the view.
                     if (left < 4f || top < 4f ||
@@ -452,7 +449,7 @@ namespace StonewardsPartyHUD
                         : new Color(0.26f, 0.89f, 0.97f, 1f);
 
                     Fill(new Rect(left, top, labelWidth, labelHeight),
-                        new Color(0.035f, 0.075f, 0.11f, 0.86f));
+                        new Color(0.035f, 0.075f, 0.11f, 0.70f));
                     Fill(new Rect(left, top + labelHeight - 2f,
                         labelWidth, 2f), accent);
 
@@ -674,7 +671,7 @@ namespace StonewardsPartyHUD
             _statusStyle = MakeStyle(11, Color.white, TextAnchor.MiddleRight, true);
             _companionStyle = MakeStyle(12, Color.white, TextAnchor.MiddleLeft, true);
             _alertStyle = MakeStyle(11, new Color(1f, 0.40f, 0.44f), TextAnchor.MiddleRight, true);
-            _worldClassStyle = MakeStyle(14, Color.white, TextAnchor.MiddleCenter, true);
+            _worldClassStyle = MakeStyle(12, Color.white, TextAnchor.MiddleCenter, true);
         }
 
         private static GUIStyle MakeStyle(int size, Color color, TextAnchor align, bool bold = false)
