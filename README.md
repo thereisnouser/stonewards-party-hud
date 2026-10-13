@@ -2,7 +2,7 @@
 
 A lightweight, client-side party overlay for **Stonewards**. See connected players' names, classes, current/max health, and downed state without searching the battlefield. Hunter companions appear as an indented health row under their owner when available. Remote teammate outlines are optional, with through-wall visibility configurable.
 
-> **Status:** Source-only alpha. Not built, tested in multiplayer, or published to Thunderstore yet.
+> **Status:** Alpha. Earlier versions have been tested locally in multiplayer; the latest UI changes still require in-game testing. Not yet published on Thunderstore.
 
 ## Installation (planned for the first tested release)
 
@@ -13,6 +13,10 @@ A lightweight, client-side party overlay for **Stonewards**. See connected playe
 The manager will install the required BepInEx dependency automatically. **No .NET SDK, terminal or manual DLL copying will be needed.**
 
 **The mod is not available in the manager yet.** These steps become applicable only after the first tested package is published.
+
+## Display
+
+The panel defaults to the upper-left corner to keep Stonewards' native Inventory and Emote prompts unobstructed. Position (`Appearance.Anchor`, `TopOffset`, `BottomOffset`), size (`Scale`) and Hunter companion display can be configured in `BepInEx/config/community.stonewards.partyhud.cfg`.
 
 ## Development
 
