@@ -264,16 +264,41 @@ namespace StonewardsPartyHUD
                     if (!_teamOutlines.TryGetValue(player, out entry))
                     {
                         // Never overwrite an outline that belongs to the game or another mod.
-                        if (root.GetComponent<QuickOutline>() != null ||
-                            root.GetComponentsInChildren<Renderer>().Length == 0)
+                        if (root.GetComponent<QuickOutline>() != null)
+                            continue;
+
+                        var renderers = root.GetComponentsInChildren<Renderer>(true);
+                        if (renderers.Length == 0)
                             continue;
 
                         var outline = root.AddComponent<QuickOutline>();
                         if (outline == null)
                             continue;
 
+                        // The game's QuickOutline does not initialize renderers in Awake().
+                        // Its first OnEnable() happens before Init(), so it does no work.
+                        // Explicitly initialize the meshes, then enable the material passes.
+                        outline.enabled = false;
+                        try
+                        {
+                            outline.OutlineMode = _outlinesThroughWalls.Value
+                                ? QuickOutline.Mode.OutlineAll
+                                : QuickOutline.Mode.OutlineVisible;
+                            outline.OutlineColor = new Color(0.24f, 0.88f, 0.96f, 1f);
+                            outline.OutlineWidth = Mathf.Clamp(_outlineWidth.Value, 0.5f, 6f);
+                            outline.Init(renderers);
+                            outline.enabled = true;
+                        }
+                        catch
+                        {
+                            Destroy(outline);
+                            throw;
+                        }
+
                         entry = new OutlineEntry { VisualRoot = root, Component = outline };
                         _teamOutlines.Add(player, entry);
+                        Logger.LogInfo("Initialized outline for teammate " +
+                            player.NetworkplayerName + " (" + renderers.Length + " renderers).");
                     }
 
                     if (entry.Component == null)
