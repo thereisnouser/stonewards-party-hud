@@ -1,36 +1,45 @@
 # Developer setup
 
-This is for contributors testing from source. Players should use the mod manager once an official package is published.
+For contributors testing from source. Players should install the published version using a compatible Thunderstore manager.
 
 ## Prerequisites
 
 - Stonewards (Windows x64, Unity Mono)
 - BepInEx 5 installed in the game directory
-- .NET SDK that supports `netstandard2.1`
+- .NET SDK supporting `netstandard2.1`
 - PowerShell 5.1+
 
-Do not commit game assemblies or BepInEx binaries.
+Do not commit or distribute Stonewards assemblies or BepInEx binaries.
 
 ## Build and install locally
 
-Close Stonewards, then run from the repository root:
+Close Stonewards, open PowerShell in the repository root, and run:
 
 ```powershell
-.\build-and-install.ps1 -GameDir "C:\path\to\steamapps\common\StoneWards"
+powershell -ExecutionPolicy Bypass -File .\build-and-install.ps1 -GameDir "C:\path\to\Steam\steamapps\common\Stonewards"
 ```
 
-This builds the plugin using the game's local assemblies, then copies it to `BepInEx/plugins/StonewardsPartyHUD/`.
+The script builds the DLL against the locally installed game and BepInEx assemblies, and copies it to `BepInEx/plugins/StonewardsPartyHUD/` only when compilation succeeds.
 
-## Package for Thunderstore
+## Prepare a Thunderstore release
 
-After a build has been tested in-game, package it with:
+1. Pull the intended commit and build/install it against the current game version.
+2. Verify the mod in a multiplayer session, including menu visibility and the player roster.
+3. Package the locally built DLL:
 
-```powershell
-.\tools\package-thunderstore.ps1
-```
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\tools\package-thunderstore.ps1
+   ```
 
-The script packages the compiled plugin, metadata, icon and README into `dist/`. It does **not** publish anything or create a release. Verify it on both host and remote client before uploading. Thunderstore publishing requires an authorized publisher account.
+4. Examine `dist/PartyHUD-0.1.0.zip`. The archive root must contain `manifest.json`, `icon.png`, `README.md`, and `plugins/StonewardsPartyHUD.dll` (plus `LICENSE`). The plugin must match the source that was tested.
+5. Smoke-test the archive as a local mod in a fresh r2modman or Gale profile. Local ZIP imports may not automatically install dependencies, so add BepInExPack to the test profile explicitly.
+6. Check the package description, version, icon, current game compatibility and licensing before publishing.
+7. Upload the verified ZIP to the Stonewards community under the publisher's authorized Thunderstore team. Test a normal manager installation **from Thunderstore** after publishing, including dependency installation.
 
-## Current risk
+No automated CI build is configured because the project compiles against assemblies from the user's locally installed game. Do not commit proprietary binaries just to enable CI.
 
-The initial source has not yet been compiled or tested with actual multiplayer sessions. Do not publish a user-facing release until that is resolved.
+The packing script creates a ZIP only; it does not publish or tag releases. Thunderstore package versions cannot be overwritten: bump `packaging/manifest.json` for each subsequent upload.
+
+## Verified status
+
+Previous source builds were compiled and installed successfully on Windows, and the user confirmed functioning party HUD, Hunter companion HP, original class icons and teammate outlines in live multiplayer. Subsequent menu-visibility fixes were also tested locally. A clean-manager ZIP installation, fresh-host comparison, resurrection/leave edge cases, and the public release are still pending. For release tracking, see [Issue #4](https://github.com/thereisnouser/stonewards-party-hud/issues/4).
