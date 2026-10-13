@@ -11,5 +11,5 @@ Install [PartyHUD on Thunderstore](https://thunderstore.io/c/stonewards/p/therei
 ## Links
 
 - [Report an issue](https://github.com/thereisnouser/stonewards-party-hud/issues)
-- [Developer setup](docs/DEVELOPMENT.md)
-- [MIT License](LICENSE)
+- [Developer setup](https://github.com/thereisnouser/stonewards-party-hud/blob/main/docs/DEVELOPMENT.md)
+- [MIT License](https://github.com/thereisnouser/stonewards-party-hud/blob/main/LICENSE)
