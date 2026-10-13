@@ -18,6 +18,8 @@ The package declares BepInExPack as a required dependency. **No .NET SDK, termin
 
 The panel defaults to the upper-left corner, below the game's player-name list, and hides while the Shop, Character Selection, Missions, or Upgrade Offers menu is open (Inventory hiding is being tested for v0.1.1). Position (`Appearance.Anchor`, `TopOffset`, `BottomOffset`, `AvoidNativePlayerNames`), size (`Scale`, `ReadabilityScale`, `AutoScaleToResolution`) and Hunter companion display can be configured in `BepInEx/config/community.stonewards.partyhud.cfg`.
 
+The upcoming v0.1.1 build also adds a compact **local-player-only** stamina and optional mana row (`ShowLocalResources`), since Stonewards does not synchronize teammates' current stamina or mana.
+
 ## Development
 
 For local source builds and installation see [Developer setup](docs/DEVELOPMENT.md). The mod is intended to read locally available multiplayer data without modifying game state or sending network messages.
