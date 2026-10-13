@@ -28,6 +28,16 @@ namespace StonewardsPartyHUD
         private const float ReferenceScreenWidth = 1920f;
         private const float ReferenceScreenHeight = 1080f;
 
+        // Inspired by Stonewards' dark inventory windows, burgundy headers
+        // and warm metallic trim. Do not change gameplay-world outline colors.
+        private static readonly Color PanelFrame = new Color(0.68f, 0.55f, 0.36f, 0.97f);
+        private static readonly Color PanelInset = new Color(0.16f, 0.12f, 0.12f, 0.98f);
+        private static readonly Color PanelBackground = new Color(0.075f, 0.076f, 0.09f, 0.96f);
+        private static readonly Color PanelHeader = new Color(0.32f, 0.17f, 0.18f, 0.98f);
+        private static readonly Color PanelTrim = new Color(0.78f, 0.64f, 0.42f, 0.95f);
+        private static readonly Color PanelDivider = new Color(0.56f, 0.43f, 0.31f, 0.28f);
+        private static readonly Color BarTrack = new Color(0.17f, 0.14f, 0.14f, 1f);
+
         private enum PanelAnchor
         {
             TopLeft,
@@ -762,14 +772,20 @@ namespace StonewardsPartyHUD
 
         private void DrawPanel(float x, float y, float height)
         {
-            Fill(new Rect(x, y, PanelWidth, height), new Color(0.035f, 0.073f, 0.11f, 0.94f));
-            Fill(new Rect(x, y, PanelWidth, 2f), new Color(0.27f, 0.67f, 0.77f));
-            Fill(new Rect(x, y + height - 1f, PanelWidth, 1f),
-                new Color(0.34f, 0.56f, 0.64f, 0.38f));
-            Fill(new Rect(x, y + HeaderHeight - 1f, PanelWidth, 1f),
-                new Color(0.36f, 0.52f, 0.62f, 0.45f));
+            // A narrow gold frame and a burgundy header echo the game's
+            // native Inventory / Stats windows without adding image assets.
+            Fill(new Rect(x, y, PanelWidth, height), PanelFrame);
+            Fill(new Rect(x + 2f, y + 2f, PanelWidth - 4f, height - 4f), PanelInset);
+            Fill(new Rect(x + 3f, y + 3f, PanelWidth - 6f, height - 6f), PanelBackground);
+            Fill(new Rect(x + 3f, y + 3f, PanelWidth - 6f, HeaderHeight - 5f),
+                PanelHeader);
+            Fill(new Rect(x + 3f, y + HeaderHeight - 3f, PanelWidth - 6f, 2f),
+                PanelTrim);
+            Fill(new Rect(x + 14f, y + HeaderHeight - 6f, 49f, 2f),
+                new Color(0.97f, 0.83f, 0.56f, 0.86f));
 
-            GUI.Label(new Rect(x + 15f, y + 7f, 171f, 27f), "PARTY STATUS", _headingStyle);
+            GUI.Label(new Rect(x + 15f, y + 7f, 171f, 27f),
+                "PARTY STATUS", _headingStyle);
 
             int downed = 0;
             for (int i = 0; i < _players.Count; i++)
@@ -801,16 +817,19 @@ namespace StonewardsPartyHUD
         private void DrawPlayer(float x, float rowY, PlayerEntry player, int index)
         {
             if (player.IsDead)
-                Fill(new Rect(x + 3f, rowY, PanelWidth - 3f, RowHeight),
-                    new Color(0.51f, 0.10f, 0.15f, 0.28f));
+                Fill(new Rect(x + 3f, rowY, PanelWidth - 6f, RowHeight),
+                    new Color(0.48f, 0.12f, 0.14f, 0.36f));
             else if (index % 2 == 1)
-                Fill(new Rect(x + 3f, rowY, PanelWidth - 3f, RowHeight),
-                    new Color(0.24f, 0.39f, 0.46f, 0.14f));
+                Fill(new Rect(x + 3f, rowY, PanelWidth - 6f, RowHeight),
+                    new Color(0.45f, 0.29f, 0.19f, 0.14f));
 
-            Fill(new Rect(x + 5f, rowY + 8f, 3f, 51f),
-                player.IsDead ? new Color(1f, 0.34f, 0.39f) : player.Accent);
+            Fill(new Rect(x + 6f, rowY + 8f, 3f, 51f),
+                player.IsDead ? new Color(0.94f, 0.31f, 0.32f) : player.Accent);
             var iconSlot = new Rect(x + 14f, rowY + 11f, 38f, 39f);
-            Fill(iconSlot, new Color(0.11f, 0.19f, 0.24f, 0.95f));
+            Fill(iconSlot, new Color(0.52f, 0.42f, 0.30f, 0.68f));
+            Fill(new Rect(iconSlot.x + 1f, iconSlot.y + 1f,
+                iconSlot.width - 2f, iconSlot.height - 2f),
+                new Color(0.13f, 0.12f, 0.13f, 0.98f));
             if (!DrawClassIcon(player.ClassIcon, new Rect(iconSlot.x + 3f,
                 iconSlot.y + 3f, iconSlot.width - 6f, iconSlot.height - 6f)))
             {
@@ -833,19 +852,19 @@ namespace StonewardsPartyHUD
             GUI.Label(new Rect(x + 62f, rowY + 30f, 115f, 17f),
                 player.ClassName, _classStyle);
             _statusStyle.normal.textColor = player.IsDead
-                ? new Color(1f, 0.39f, 0.44f)
-                : new Color(0.62f, 0.79f, 0.81f);
+                ? new Color(1f, 0.52f, 0.50f)
+                : new Color(0.78f, 0.71f, 0.57f);
             GUI.Label(new Rect(x + 180f, rowY + 30f, 164f, 17f),
                 player.IsDead ? "DOWN - REVIVE" : "ALIVE", _statusStyle);
 
             const float barWidth = 282f;
-            Fill(new Rect(x + 62f, rowY + 53f, barWidth, 8f),
-                new Color(0.22f, 0.30f, 0.37f, 1f));
+            Fill(new Rect(x + 62f, rowY + 53f, barWidth, 8f), BarTrack);
             if (player.HasStats && player.MaxHealth > 0f && !player.IsDead)
             {
                 float fraction = Mathf.Clamp01(player.Health / player.MaxHealth);
+                // Familiar gameplay feedback takes priority over the warm skin.
                 Color color = fraction > 0.65f
-                    ? new Color(0.31f, 0.80f, 0.52f)
+                    ? new Color(0.37f, 0.79f, 0.42f)
                     : fraction > 0.3f
                         ? new Color(0.97f, 0.72f, 0.30f)
                         : new Color(0.95f, 0.32f, 0.36f);
@@ -853,8 +872,8 @@ namespace StonewardsPartyHUD
                     Fill(new Rect(x + 62f, rowY + 53f, barWidth * fraction, 8f), color);
             }
 
-            Fill(new Rect(x + 14f, rowY + RowHeight - 1f, PanelWidth - 28f, 1f),
-                new Color(0.34f, 0.50f, 0.56f, 0.14f));
+            Fill(new Rect(x + 12f, rowY + RowHeight - 1f, PanelWidth - 24f, 1f),
+                PanelDivider);
         }
 
         private void DrawCompanion(float x, float rowY, CompanionEntry companion)
@@ -862,13 +881,13 @@ namespace StonewardsPartyHUD
             bool down = companion.IsKnockedOut;
             Fill(new Rect(x + 52f, rowY, PanelWidth - 60f, CompanionRowHeight),
                 down ? new Color(0.53f, 0.12f, 0.16f, 0.30f)
-                     : new Color(0.17f, 0.34f, 0.29f, 0.30f));
+                     : new Color(0.42f, 0.31f, 0.19f, 0.20f));
             Fill(new Rect(x + 59f, rowY + 4f, 2f, CompanionRowHeight - 9f),
                 down ? new Color(1f, 0.37f, 0.43f) : new Color(0.44f, 0.76f, 0.52f));
 
             _companionStyle.normal.textColor = down
                 ? new Color(1f, 0.48f, 0.51f)
-                : new Color(0.76f, 0.88f, 0.78f);
+                : new Color(0.87f, 0.79f, 0.64f);
             GUI.Label(new Rect(x + 69f, rowY + 2f, 195f, 21f),
                 down ? "BEAR - KNOCKED OUT" : "BEAR", _companionStyle);
 
@@ -880,13 +899,12 @@ namespace StonewardsPartyHUD
                 hp, _healthStyle);
 
             const float barWidth = 275f;
-            Fill(new Rect(x + 69f, rowY + 28f, barWidth, 6f),
-                new Color(0.22f, 0.30f, 0.37f, 1f));
+            Fill(new Rect(x + 69f, rowY + 28f, barWidth, 6f), BarTrack);
             if (!down && companion.MaxHealth > 0f)
             {
                 float fraction = Mathf.Clamp01(companion.Health / companion.MaxHealth);
                 Color barColor = fraction > 0.3f
-                    ? new Color(0.43f, 0.75f, 0.52f)
+                    ? new Color(0.43f, 0.76f, 0.44f)
                     : new Color(0.96f, 0.64f, 0.30f);
                 if (fraction > 0f)
                     Fill(new Rect(x + 69f, rowY + 28f, barWidth * fraction, 6f), barColor);
@@ -897,7 +915,9 @@ namespace StonewardsPartyHUD
         {
             // Group defensive wall sections below the team, never as a player.
             Fill(new Rect(x + 4f, rowY, PanelWidth - 8f, WallRowHeight),
-                new Color(0.34f, 0.24f, 0.11f, 0.28f));
+                new Color(0.49f, 0.33f, 0.16f, 0.23f));
+            Fill(new Rect(x + 12f, rowY, PanelWidth - 24f, 1f),
+                PanelDivider);
             Fill(new Rect(x + 12f, rowY + 11f, 4f, WallRowHeight - 19f),
                 _wallBreached ? new Color(1f, 0.34f, 0.38f)
                              : new Color(0.97f, 0.73f, 0.35f));
@@ -919,8 +939,7 @@ namespace StonewardsPartyHUD
                 _wallBreached ? "BREACHED - REPAIR" : "DEFENSE", _wallStatusStyle);
 
             const float barWidth = 321f;
-            Fill(new Rect(x + 23f, rowY + 51f, barWidth, 9f),
-                new Color(0.21f, 0.26f, 0.29f));
+            Fill(new Rect(x + 23f, rowY + 51f, barWidth, 9f), BarTrack);
             float fraction = Mathf.Clamp01(_wallHealth / _wallMaxHealth);
             if (fraction > 0f)
             {
@@ -946,17 +965,27 @@ namespace StonewardsPartyHUD
             if (_headingStyle != null)
                 return;
 
-            _headingStyle = MakeStyle(17, Color.white, TextAnchor.MiddleLeft, true);
-            _countStyle = MakeStyle(12, new Color(0.65f, 0.80f, 0.87f), TextAnchor.MiddleRight, true);
-            _nameStyle = MakeStyle(16, Color.white, TextAnchor.MiddleLeft, true);
-            _classStyle = MakeStyle(12, new Color(0.68f, 0.82f, 0.90f), TextAnchor.MiddleLeft, true);
+            _headingStyle = MakeStyle(17, new Color(0.99f, 0.83f, 0.56f),
+                TextAnchor.MiddleLeft, true);
+            _countStyle = MakeStyle(12, new Color(0.90f, 0.77f, 0.59f),
+                TextAnchor.MiddleRight, true);
+            _nameStyle = MakeStyle(16, new Color(0.97f, 0.93f, 0.85f),
+                TextAnchor.MiddleLeft, true);
+            _classStyle = MakeStyle(12, new Color(0.78f, 0.69f, 0.55f),
+                TextAnchor.MiddleLeft, true);
             _badgeStyle = MakeStyle(14, Color.white, TextAnchor.MiddleCenter, true);
-            _healthStyle = MakeStyle(13, Color.white, TextAnchor.MiddleRight, true);
+            _healthStyle = MakeStyle(13, new Color(0.97f, 0.93f, 0.85f),
+                TextAnchor.MiddleRight, true);
             _statusStyle = MakeStyle(12, Color.white, TextAnchor.MiddleRight, true);
-            _companionStyle = MakeStyle(13, Color.white, TextAnchor.MiddleLeft, true);
-            _alertStyle = MakeStyle(12, new Color(1f, 0.40f, 0.44f), TextAnchor.MiddleRight, true);
+            _companionStyle = MakeStyle(13, new Color(0.87f, 0.79f, 0.64f),
+                TextAnchor.MiddleLeft, true);
+            _alertStyle = MakeStyle(12, new Color(1f, 0.50f, 0.45f),
+                TextAnchor.MiddleRight, true);
+            // World nickname contrast is unchanged: labels must stay readable
+            // through bright outdoor scenery and dark caves.
             _worldNameStyle = MakeStyle(12, Color.white, TextAnchor.MiddleCenter, true);
-            _wallStatusStyle = MakeStyle(12, Color.white, TextAnchor.MiddleLeft, true);
+            _wallStatusStyle = MakeStyle(12, new Color(0.95f, 0.81f, 0.56f),
+                TextAnchor.MiddleLeft, true);
         }
 
         private static GUIStyle MakeStyle(int size, Color color, TextAnchor align, bool bold = false)
