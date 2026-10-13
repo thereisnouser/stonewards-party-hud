@@ -16,8 +16,8 @@ namespace StonewardsPartyHUD
         public const string PluginVersion = "0.1.1";
 
         private const float RefreshSeconds = 0.2f;
-        private const float PanelWidth = 322f;
-        private const float HeaderHeight = 40f;
+        private const float PanelWidth = 278f;
+        private const float HeaderHeight = 49f;
         private const float RowHeight = 67f;
         private const float CompanionRowHeight = 38f;
         private const float WallRowHeight = 66f;
@@ -27,10 +27,9 @@ namespace StonewardsPartyHUD
         private const float NativeRosterPlayerRowSafeZone = 42f;
         private const float ReferenceScreenWidth = 1920f;
         private const float ReferenceScreenHeight = 1080f;
-        // Narrower frame, but slightly larger overall on screen: pixel font,
-        // class icons and health bars keep their proportions. User config,
-        // resolution-aware scaling and viewport fitting still apply.
-        private const float PanelSizeBoost = 1.16f;
+        // Keep the pixel UI physically larger while narrowing the panel.
+        // Existing appearance configuration and viewport fitting still apply.
+        private const float PanelSizeBoost = 1.25f;
 
         // Native Stonewards UI colors sampled from Shop and Character Selection.
         private static readonly Color PanelFrame = new Color(0.72f, 0.64f, 0.48f);
@@ -777,7 +776,9 @@ namespace StonewardsPartyHUD
         private void DrawPanel(float x, float y, float height)
         {
             DrawStonewardsWindow(x, y, PanelWidth, height);
-            GUI.Label(new Rect(x + 58f, y + 6f, PanelWidth - 116f, 29f),
+            // A separate caption row prevents DOWN and party count from
+            // overlapping the centered title on the narrower panel.
+            GUI.Label(new Rect(x + 20f, y + 2f, PanelWidth - 40f, 29f),
                 "PARTY STATUS", _headingStyle);
 
             int downed = 0;
@@ -786,9 +787,9 @@ namespace StonewardsPartyHUD
                     downed++;
 
             if (downed > 0)
-                GUI.Label(new Rect(x + 12f, y + 11f, 86f, 21f),
+                GUI.Label(new Rect(x + 14f, y + 28f, 116f, 18f),
                     downed + " DOWN", _alertStyle);
-            GUI.Label(new Rect(x + PanelWidth - 83f, y + 11f, 69f, 20f),
+            GUI.Label(new Rect(x + PanelWidth - 80f, y + 28f, 66f, 18f),
                 _players.Count + " / 4", _countStyle);
 
             float rowY = y + HeaderHeight;
@@ -855,25 +856,25 @@ namespace StonewardsPartyHUD
                     player.Badge, _badgeStyle);
             }
 
-            GUI.Label(new Rect(x + 62f, rowY + 6f, 148f, 25f),
-                FitText(player.Name, _nameStyle, 148f), _nameStyle);
+            GUI.Label(new Rect(x + 62f, rowY + 6f, 119f, 25f),
+                FitText(player.Name, _nameStyle, 119f), _nameStyle);
 
             string hp = player.HasStats && player.MaxHealth > 0f
                 ? Mathf.CeilToInt(Mathf.Max(0f, player.Health)) + " / " +
                     Mathf.CeilToInt(player.MaxHealth)
                 : "-- / --";
-            GUI.Label(new Rect(x + 218f, rowY + 8f, 90f, 22f),
+            GUI.Label(new Rect(x + 187f, rowY + 8f, 79f, 22f),
                 hp, _healthStyle);
 
-            GUI.Label(new Rect(x + 62f, rowY + 30f, 115f, 17f),
-                player.ClassName, _classStyle);
+            GUI.Label(new Rect(x + 62f, rowY + 30f, 91f, 17f),
+                FitText(player.ClassName, _classStyle, 91f), _classStyle);
             _statusStyle.normal.textColor = player.IsDead
                 ? new Color(1f, 0.52f, 0.50f)
                 : new Color(0.89f, 0.83f, 0.72f);
-            GUI.Label(new Rect(x + 169f, rowY + 30f, 139f, 17f),
+            GUI.Label(new Rect(x + 155f, rowY + 30f, 111f, 17f),
                 player.IsDead ? "DOWN - REVIVE" : "ALIVE", _statusStyle);
 
-            const float barWidth = PanelWidth - 86f;
+            const float barWidth = PanelWidth - 82f;
             Fill(new Rect(x + 62f, rowY + 53f, barWidth, 8f), BarTrack);
             if (player.HasStats && player.MaxHealth > 0f && !player.IsDead)
             {
@@ -904,17 +905,17 @@ namespace StonewardsPartyHUD
             _companionStyle.normal.textColor = down
                 ? new Color(1f, 0.48f, 0.51f)
                 : new Color(0.87f, 0.79f, 0.64f);
-            GUI.Label(new Rect(x + 69f, rowY + 2f, 147f, 21f),
+            GUI.Label(new Rect(x + 69f, rowY + 2f, 108f, 21f),
                 down ? "BEAR - DOWN" : "BEAR", _companionStyle);
 
             string hp = companion.MaxHealth > 0f
                 ? Mathf.CeilToInt(Mathf.Max(0f, companion.Health)) + " / " +
                     Mathf.CeilToInt(companion.MaxHealth)
                 : "-- / --";
-            GUI.Label(new Rect(x + 218f, rowY + 2f, 90f, 22f),
+            GUI.Label(new Rect(x + 185f, rowY + 2f, 81f, 22f),
                 hp, _healthStyle);
 
-            const float barWidth = PanelWidth - 93f;
+            const float barWidth = PanelWidth - 91f;
             Fill(new Rect(x + 69f, rowY + 28f, barWidth, 6f), BarTrack);
             if (!down && companion.MaxHealth > 0f)
             {
@@ -939,19 +940,19 @@ namespace StonewardsPartyHUD
                              : new Color(0.97f, 0.73f, 0.35f));
 
             string title = _wallSections > 1
-                ? "WALL TOTAL (" + _wallSections + ")" : "WALL";
-            GUI.Label(new Rect(x + 23f, rowY + 5f, 180f, 26f),
+                ? "WALL (" + _wallSections + ")" : "WALL";
+            GUI.Label(new Rect(x + 23f, rowY + 5f, 128f, 26f),
                 title, _nameStyle);
 
             string hp = Mathf.CeilToInt(Mathf.Max(0f, _wallHealth)) + " / " +
                 Mathf.CeilToInt(_wallMaxHealth);
-            GUI.Label(new Rect(x + 208f, rowY + 6f, 100f, 26f),
+            GUI.Label(new Rect(x + 161f, rowY + 6f, 105f, 26f),
                 hp, _healthStyle);
 
             _wallStatusStyle.normal.textColor = _wallBreached
                 ? new Color(1f, 0.49f, 0.47f)
                 : new Color(0.95f, 0.81f, 0.56f);
-            GUI.Label(new Rect(x + 23f, rowY + 30f, 250f, 17f),
+            GUI.Label(new Rect(x + 23f, rowY + 30f, PanelWidth - 46f, 17f),
                 _wallBreached ? "BREACHED - REPAIR" : "DEFENSE", _wallStatusStyle);
 
             const float barWidth = PanelWidth - 47f;
