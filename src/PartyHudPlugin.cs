@@ -27,6 +27,10 @@ namespace StonewardsPartyHUD
         private const float NativeRosterPlayerRowSafeZone = 42f;
         private const float ReferenceScreenWidth = 1920f;
         private const float ReferenceScreenHeight = 1080f;
+        // Increase the entire native-styled HUD uniformly, including the
+        // frame, game font, icons and health bars. Existing user config stays
+        // intact; resolution-based downscaling and viewport fitting still apply.
+        private const float PanelSizeBoost = 1.10f;
 
         // Native Stonewards UI colors sampled from Shop and Character Selection.
         private static readonly Color PanelFrame = new Color(0.72f, 0.64f, 0.48f);
@@ -732,7 +736,7 @@ namespace StonewardsPartyHUD
 
             float scale = Mathf.Clamp(_scale.Value *
                 Mathf.Clamp(_readabilityScale.Value, 1f, 1.4f) *
-                automaticScale, 0.55f, 1.8f);
+                PanelSizeBoost * automaticScale, 0.55f, 1.8f);
             // Preserve the safety fit for small windows and large parties.
             scale = Mathf.Min(scale, (Screen.width - 16f) / PanelWidth,
                 (Screen.height - 16f) / height);
