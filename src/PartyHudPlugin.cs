@@ -267,7 +267,7 @@ namespace StonewardsPartyHUD
                 // WallStats exposes the defensive sections' Mirror SyncVars.
                 // Aggregate active network sections instead of choosing an
                 // arbitrary one that might not represent total durability.
-                var walls = UnityEngine.Object.FindObjectsOfType<WallStats>();
+                var walls = UnityEngine.Object.FindObjectsByType<WallStats>(FindObjectsSortMode.None);
                 for (int i = 0; i < walls.Length; i++)
                 {
                     var wall = walls[i];
