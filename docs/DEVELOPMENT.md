@@ -19,7 +19,22 @@ Close Stonewards, open PowerShell in the repository root, and run:
 powershell -ExecutionPolicy Bypass -File .\build-and-install.ps1 -GameDir "C:\path\to\Steam\steamapps\common\Stonewards"
 ```
 
-The script builds the DLL against the locally installed game and BepInEx assemblies, and copies it to `BepInEx/plugins/StonewardsPartyHUD/` only when compilation succeeds.
+The script builds against the locally installed game and BepInEx assemblies and installs the DLL only when compilation succeeds.
+
+### Test a development build with r2modman
+
+Use a **separate test profile** with BepInExPack installed. Temporarily disable the published PartyHUD package in that profile so that only one copy of the plugin can load. In r2modman, use **Settings → Locations → Browse profile folder** and copy the full folder path.
+
+Close the game, then from the repository root run:
+
+```powershell
+git pull
+powershell -ExecutionPolicy Bypass -File .\build-and-install.ps1 -GameDir "F:\Steam\steamapps\common\Stonewards" -ProfileDir "<full r2modman profile folder path>"
+```
+
+This uses `<profile>/BepInEx/core/BepInEx.dll` for compilation and installs the current DLL in `<profile>/BepInEx/plugins/StonewardsPartyHUD/`, **not** in the Steam game directory. Launch through **Start modded** with that same profile. A missing profile BepInEx DLL is a setup error, not a reason to copy mod files into Steam.
+
+When finished, delete only the development-plugin folder `<profile>/BepInEx/plugins/StonewardsPartyHUD/` and re-enable the published PartyHUD package. A published Thunderstore package version is immutable; do not upload a local development build as v0.1.0.
 
 ## Prepare a Thunderstore release
 
