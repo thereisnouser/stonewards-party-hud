@@ -733,7 +733,6 @@ namespace StonewardsPartyHUD
             _companionStyle = MakeStyle(13, Color.white, TextAnchor.MiddleLeft, true);
             _alertStyle = MakeStyle(12, new Color(1f, 0.40f, 0.44f), TextAnchor.MiddleRight, true);
             _worldNameStyle = MakeStyle(12, Color.white, TextAnchor.MiddleCenter, true);
-            _wallStatusStyle = MakeStyle(12, Color.white, TextAnchor.MiddleLeft, true);
         }
 
         private static GUIStyle MakeStyle(int size, Color color, TextAnchor align, bool bold = false)
