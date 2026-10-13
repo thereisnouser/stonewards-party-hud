@@ -5,7 +5,7 @@ For contributors testing from source. Players should install the published versi
 ## Prerequisites
 
 - Stonewards (Windows x64, Unity Mono)
-- BepInEx 5 installed in the game directory
+- BepInEx 5 available either in the game directory or in the chosen r2modman/Gale profile
 - .NET SDK supporting `netstandard2.1`
 - PowerShell 5.1+
 
@@ -32,7 +32,7 @@ git pull
 powershell -ExecutionPolicy Bypass -File .\build-and-install.ps1 -GameDir "F:\Steam\steamapps\common\Stonewards" -ProfileDir "<full r2modman profile folder path>"
 ```
 
-This uses `<profile>/BepInEx/core/BepInEx.dll` for compilation and installs the current DLL in `<profile>/BepInEx/plugins/StonewardsPartyHUD/`, **not** in the Steam game directory. Launch through **Start modded** with that same profile. A missing profile BepInEx DLL is a setup error, not a reason to copy mod files into Steam.
+This uses `<profile>/BepInEx/core/BepInEx.dll` for compilation and installs the current DLL in `<profile>/BepInEx/plugins/StonewardsPartyHUD/`, **not** in the Steam game directory. Launch through **Start modded** with that same profile, or use Steam if you have configured its launch options to launch that exact profile. **When you switch r2modman profiles, update Steam launch options too**; otherwise Steam can silently load an older profile/mod build. A missing profile BepInEx DLL is a setup error, not a reason to copy mod files into Steam.
 
 When finished, delete only the development-plugin folder `<profile>/BepInEx/plugins/StonewardsPartyHUD/` and re-enable the published PartyHUD package. A published Thunderstore package version is immutable; do not upload a local development build as v0.1.0.
 
