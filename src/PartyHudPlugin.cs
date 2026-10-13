@@ -592,12 +592,15 @@ namespace StonewardsPartyHUD
             DrawTeammatePlayerNames();
 
             float height = HeaderHeight + _players.Count * RowHeight + FooterPadding;
+            if (_hasWall)
+                height += WallRowHeight;
             for (int i = 0; i < _players.Count; i++)
                 if (_players[i].Companion != null)
                     height += CompanionRowHeight;
 
             // Fit even when the player uses a large scale or a small display.
-            float scale = Mathf.Clamp(_scale.Value, 0.65f, 1.8f);
+            float scale = Mathf.Clamp(_scale.Value *
+                Mathf.Clamp(_readabilityScale.Value, 1f, 1.4f), 0.65f, 1.8f);
             scale = Mathf.Min(scale, (Screen.width - 16f) / PanelWidth,
                 (Screen.height - 16f) / height);
             if (scale <= 0f)
@@ -667,6 +670,9 @@ namespace StonewardsPartyHUD
                     rowY += CompanionRowHeight;
                 }
             }
+
+            if (_hasWall)
+                DrawWallHealth(x, rowY);
         }
 
         private void DrawPlayer(float x, float rowY, PlayerEntry player, int index)
@@ -764,6 +770,46 @@ namespace StonewardsPartyHUD
             }
         }
 
+        private void DrawWallHealth(float x, float rowY)
+        {
+            // Group defensive wall sections below the team, never as a player.
+            Fill(new Rect(x + 4f, rowY, PanelWidth - 8f, WallRowHeight),
+                new Color(0.34f, 0.24f, 0.11f, 0.28f));
+            Fill(new Rect(x + 12f, rowY + 11f, 4f, WallRowHeight - 19f),
+                _wallBreached ? new Color(1f, 0.34f, 0.38f)
+                             : new Color(0.97f, 0.73f, 0.35f));
+
+            string title = _wallSections > 1
+                ? "WALL TOTAL (" + _wallSections + ")" : "WALL";
+            GUI.Label(new Rect(x + 23f, rowY + 5f, 190f, 26f),
+                title, _nameStyle);
+
+            string hp = Mathf.CeilToInt(Mathf.Max(0f, _wallHealth)) + " / " +
+                Mathf.CeilToInt(_wallMaxHealth);
+            GUI.Label(new Rect(x + 229f, rowY + 6f, 115f, 26f),
+                hp, _healthStyle);
+
+            _wallStatusStyle.normal.textColor = _wallBreached
+                ? new Color(1f, 0.49f, 0.47f)
+                : new Color(0.95f, 0.81f, 0.56f);
+            GUI.Label(new Rect(x + 23f, rowY + 30f, 250f, 17f),
+                _wallBreached ? "BREACHED - REPAIR" : "DEFENSE", _wallStatusStyle);
+
+            const float barWidth = 321f;
+            Fill(new Rect(x + 23f, rowY + 51f, barWidth, 9f),
+                new Color(0.21f, 0.26f, 0.29f));
+            float fraction = Mathf.Clamp01(_wallHealth / _wallMaxHealth);
+            if (fraction > 0f)
+            {
+                Color color = fraction > 0.65f
+                    ? new Color(0.95f, 0.73f, 0.33f)
+                    : fraction > 0.3f
+                        ? new Color(0.95f, 0.53f, 0.26f)
+                        : new Color(0.97f, 0.30f, 0.31f);
+                Fill(new Rect(x + 23f, rowY + 51f, barWidth * fraction, 9f), color);
+            }
+        }
+
         private static void Fill(Rect rect, Color color)
         {
             Color previous = GUI.color;
@@ -777,16 +823,17 @@ namespace StonewardsPartyHUD
             if (_headingStyle != null)
                 return;
 
-            _headingStyle = MakeStyle(15, Color.white, TextAnchor.MiddleLeft, true);
-            _countStyle = MakeStyle(11, new Color(0.65f, 0.80f, 0.87f), TextAnchor.MiddleRight, true);
-            _nameStyle = MakeStyle(15, Color.white, TextAnchor.MiddleLeft, true);
-            _classStyle = MakeStyle(11, new Color(0.68f, 0.82f, 0.90f), TextAnchor.MiddleLeft, true);
-            _badgeStyle = MakeStyle(13, Color.white, TextAnchor.MiddleCenter, true);
-            _healthStyle = MakeStyle(12, Color.white, TextAnchor.MiddleRight, true);
-            _statusStyle = MakeStyle(11, Color.white, TextAnchor.MiddleRight, true);
-            _companionStyle = MakeStyle(12, Color.white, TextAnchor.MiddleLeft, true);
-            _alertStyle = MakeStyle(11, new Color(1f, 0.40f, 0.44f), TextAnchor.MiddleRight, true);
+            _headingStyle = MakeStyle(17, Color.white, TextAnchor.MiddleLeft, true);
+            _countStyle = MakeStyle(12, new Color(0.65f, 0.80f, 0.87f), TextAnchor.MiddleRight, true);
+            _nameStyle = MakeStyle(16, Color.white, TextAnchor.MiddleLeft, true);
+            _classStyle = MakeStyle(12, new Color(0.68f, 0.82f, 0.90f), TextAnchor.MiddleLeft, true);
+            _badgeStyle = MakeStyle(14, Color.white, TextAnchor.MiddleCenter, true);
+            _healthStyle = MakeStyle(13, Color.white, TextAnchor.MiddleRight, true);
+            _statusStyle = MakeStyle(12, Color.white, TextAnchor.MiddleRight, true);
+            _companionStyle = MakeStyle(13, Color.white, TextAnchor.MiddleLeft, true);
+            _alertStyle = MakeStyle(12, new Color(1f, 0.40f, 0.44f), TextAnchor.MiddleRight, true);
             _worldNameStyle = MakeStyle(12, Color.white, TextAnchor.MiddleCenter, true);
+            _wallStatusStyle = MakeStyle(12, Color.white, TextAnchor.MiddleLeft, true);
         }
 
         private static GUIStyle MakeStyle(int size, Color color, TextAnchor align, bool bold = false)
