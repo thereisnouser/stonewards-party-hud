@@ -21,6 +21,8 @@ namespace StonewardsPartyHUD
         private const float CompanionRowHeight = 38f;
         private const float FooterPadding = 8f;
         private const float BottomHudSafeZone = 132f;
+        private const float NativeRosterHeaderSafeZone = 130f;
+        private const float NativeRosterPlayerRowSafeZone = 42f;
 
         private enum PanelAnchor
         {
@@ -46,6 +48,7 @@ namespace StonewardsPartyHUD
         private ConfigEntry<float> _outlineWidth;
         private ConfigEntry<int> _leftOffset;
         private ConfigEntry<int> _topOffset;
+        private ConfigEntry<bool> _avoidNativeRoster;
         private ConfigEntry<int> _bottomOffset;
         private ConfigEntry<PanelAnchor> _anchor;
         private float _nextRefresh;
@@ -112,7 +115,9 @@ namespace StonewardsPartyHUD
             _leftOffset = Config.Bind("Appearance", "LeftOffset", 20,
                 "Distance from the left edge, in unscaled pixels.");
             _topOffset = Config.Bind("Appearance", "TopOffset", 105,
-                "Distance from the top when Anchor is TopLeft; clears native upper-left text.");
+                "Minimum distance from the top when Anchor is TopLeft.");
+            _avoidNativeRoster = Config.Bind("Appearance", "AvoidNativePlayerNames", true,
+                "Keep Party HUD below Stonewards' native player names, including in larger lobbies.");
             _bottomOffset = Config.Bind("Appearance", "BottomOffset", 140,
                 "Distance from the bottom when Anchor is BottomLeft. A safety zone protects native UI.");
             Logger.LogInfo("Party HUD v" + PluginVersion + " initialized.");
@@ -475,10 +480,23 @@ namespace StonewardsPartyHUD
             }
         }
 
+        private static bool IsBlockingGameMenuOpen()
+        {
+            // These menus derive from BaseMenu, which tracks visibility using
+            // IsOpen. Component activation alone is not a reliable indicator.
+            var shop = ShopMenu.Instance;
+            if (shop != null && shop.IsOpen)
+                return true;
+
+            var selection = CharacterSelectionScreen.Instance;
+            return selection != null && selection.IsOpen;
+        }
+
         private void OnGUI()
         {
             if (!_enabled.Value || _players.Count == 0 ||
-                Event.current == null || Event.current.type != EventType.Repaint)
+                Event.current == null || Event.current.type != EventType.Repaint ||
+                IsBlockingGameMenuOpen())
                 return;
 
             EnsureStyles();
@@ -500,8 +518,16 @@ namespace StonewardsPartyHUD
             float screenHeight = Screen.height / scale;
             float x = Mathf.Clamp(_leftOffset.Value, 8f,
                 Mathf.Max(8f, screenWidth - PanelWidth - 8f));
+            // The native player roster grows downwards from the upper-left
+            // corner. Respect its occupied space even when an older config
+            // still contains the original small TopOffset of 105.
+            float topOffset = _topOffset.Value;
+            if (_avoidNativeRoster.Value)
+                topOffset = Mathf.Max(topOffset,
+                    NativeRosterHeaderSafeZone + _players.Count * NativeRosterPlayerRowSafeZone);
+
             float requestedY = _anchor.Value == PanelAnchor.TopLeft
-                ? _topOffset.Value
+                ? topOffset
                 : screenHeight - Mathf.Max(_bottomOffset.Value, BottomHudSafeZone) - height;
             float y = Mathf.Clamp(requestedY, 8f, Mathf.Max(8f, screenHeight - height - 8f));
 
