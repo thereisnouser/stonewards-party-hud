@@ -1,6 +1,6 @@
 # Stonewards Party HUD
 
-A lightweight, client-side party overlay for **Stonewards**. See connected players' names, classes, current/max health, and downed state without searching the battlefield. Hunter companions appear as an indented health row under their owner when available. Remote teammate outlines are optional, with through-wall visibility configurable. The HUD uses the game's own class sprites when available, falling back to short class labels.
+A lightweight, client-side party overlay for **Stonewards**. See connected players' names, classes, current/max health, and downed state without searching the battlefield. Hunter companions appear as an indented health row under their owner when available. Remote teammate outlines and floating class labels are optional, with through-wall visibility configurable. The HUD uses the game's own class sprites when available, falling back to short class labels.
 
 > **Status:** Alpha. Earlier versions have been tested locally in multiplayer; the latest UI changes still require in-game testing. Not yet published on Thunderstore.
 
