@@ -4,6 +4,7 @@ using System.Reflection;
 using BepInEx;
 using BepInEx.Configuration;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace StonewardsPartyHUD
 {
@@ -12,7 +13,7 @@ namespace StonewardsPartyHUD
     {
         public const string PluginGuid = "community.stonewards.partyhud";
         public const string PluginName = "Stonewards Party HUD";
-        public const string PluginVersion = "0.1.0";
+        public const string PluginVersion = "0.1.1";
 
         private const float RefreshSeconds = 0.2f;
         private const float PanelWidth = 358f;
@@ -23,6 +24,8 @@ namespace StonewardsPartyHUD
         private const float BottomHudSafeZone = 132f;
         private const float NativeRosterHeaderSafeZone = 130f;
         private const float NativeRosterPlayerRowSafeZone = 42f;
+        private const float ReferenceScreenWidth = 1920f;
+        private const float ReferenceScreenHeight = 1080f;
 
         private enum PanelAnchor
         {
@@ -35,12 +38,18 @@ namespace StonewardsPartyHUD
         private readonly Dictionary<FirstPersonController, OutlineEntry> _teamOutlines =
             new Dictionary<FirstPersonController, OutlineEntry>();
         private readonly List<FirstPersonController> _expiredOutlines = new List<FirstPersonController>();
+        // InventoryScreen does not inherit BaseMenu. Its UI Toolkit root
+        // switches between DisplayStyle.Flex and None on opening/closing.
+        private static readonly FieldInfo InventoryRootField =
+            typeof(InventoryScreen).GetField("inventoryScreen",
+                BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo CharacterVisualsParentField =
             typeof(FirstPersonController).GetField("characterVisualsParent",
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<float> _scale;
         private ConfigEntry<float> _readabilityScale;
+        private ConfigEntry<bool> _autoScaleToResolution;
         private ConfigEntry<bool> _showCompanionHealth;
         private ConfigEntry<bool> _showTeammateOutlines;
         private ConfigEntry<bool> _showPlayerNames;
@@ -101,6 +110,8 @@ namespace StonewardsPartyHUD
                 "HUD size multiplier (clamped to 0.65 - 1.8).");
             _readabilityScale = Config.Bind("Appearance", "ReadabilityScale", 1.12f,
                 "Extra panel enlargement (1.0 - 1.4), also applied to existing configurations.");
+            _autoScaleToResolution = Config.Bind("Appearance", "AutoScaleToResolution", true,
+                "Scale down the panel on screens below 1920x1080; manual Scale and ReadabilityScale remain available.");
             _showCompanionHealth = Config.Bind("Appearance", "ShowCompanionHealth", true,
                 "Show a Hunter's companion health directly below the Hunter's entry.");
             _showTeammateOutlines = Config.Bind("TeammateOutlines", "Enabled", true,
@@ -519,6 +530,16 @@ namespace StonewardsPartyHUD
             if (missions != null && missions.IsOpen)
                 return true;
 
+            // Check actual UI visibility, not Tab key presses or whether
+            // the InventoryScreen component exists in the scene.
+            var inventory = InventoryScreen.Instance;
+            if (inventory != null && InventoryRootField != null)
+            {
+                var root = InventoryRootField.GetValue(inventory) as VisualElement;
+                if (root != null && root.resolvedStyle.display != DisplayStyle.None)
+                    return true;
+            }
+
             // RogueLikeUpgradeMenu is the three-choice UPGRADE OFFERS screen,
             // including ring and other between-wave upgrade selections.
             var upgrades = RogueLikeUpgradeMenu.Instance;
@@ -540,9 +561,21 @@ namespace StonewardsPartyHUD
                 if (_players[i].Companion != null)
                     height += CompanionRowHeight;
 
-            // Fit even when the player uses a large scale or a small display.
+            // Match current sizing at 1920x1080, adapt below it, and avoid
+            // inflating the panel beyond user settings on larger displays.
+            float automaticScale = 1f;
+            if (_autoScaleToResolution.Value)
+            {
+                float relativeWidth = Screen.width / ReferenceScreenWidth;
+                float relativeHeight = Screen.height / ReferenceScreenHeight;
+                automaticScale = Mathf.Clamp(
+                    Mathf.Min(relativeWidth, relativeHeight), 0.65f, 1f);
+            }
+
             float scale = Mathf.Clamp(_scale.Value *
-                Mathf.Clamp(_readabilityScale.Value, 1f, 1.4f), 0.65f, 1.8f);
+                Mathf.Clamp(_readabilityScale.Value, 1f, 1.4f) *
+                automaticScale, 0.55f, 1.8f);
+            // Preserve the safety fit for small windows and large parties.
             scale = Mathf.Min(scale, (Screen.width - 16f) / PanelWidth,
                 (Screen.height - 16f) / height);
             if (scale <= 0f)
