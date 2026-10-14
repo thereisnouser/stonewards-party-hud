@@ -14,6 +14,7 @@ A lightweight, **client-side** party HUD for **Stonewards**, styled to fit the g
 - **Teammate tracking:** optional outlines and floating nicknames, including through walls.
 - **Extra health bars:** Hunter's bear companion and defensive wall health.
 - **Host ping:** the host can see measured connection latency for teammates (in ms).
+- **Host ring inspector:** press **F8** to inspect teammates' selected rings, rarities and pick counts. Use **F9** to switch players and **PageUp/PageDown** to browse pages.
 - **Fits your screen:** resolution-proportional scaling and configurable panel position.
 
 **Client-side only:** teammates do not need to install the mod.
