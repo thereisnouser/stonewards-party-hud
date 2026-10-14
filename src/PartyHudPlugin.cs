@@ -122,6 +122,7 @@ namespace StonewardsPartyHUD
         private bool _wallBreached;
         private float _nextWarning;
         private float _nextPingDiagnostic;
+        private float _nextOutlineShaderRetry;
         private GUIStyle _headingStyle;
         private GUIStyle _countStyle;
         private GUIStyle _nameStyle;
@@ -808,6 +809,11 @@ namespace StonewardsPartyHUD
 
                     if (!_teamOutlines.TryGetValue(player, out entry))
                     {
+                        // Unsupported game shaders are global to this client:
+                        // avoid recreating and destroying them every refresh.
+                        if (Time.unscaledTime < _nextOutlineShaderRetry)
+                            continue;
+
                         // Never overwrite an outline that belongs to the game or another mod.
                         if (root.GetComponent<QuickOutline>() != null)
                             continue;
@@ -834,8 +840,10 @@ namespace StonewardsPartyHUD
                             // teammate into a solid magenta silhouette.
                             if (!AreOutlineShadersUsable(outline))
                             {
+                                _nextOutlineShaderRetry = Time.unscaledTime + 15f;
                                 Logger.LogWarning("Skipped teammate outline: " +
-                                    "QuickOutline mask/fill shader is missing or unsupported.");
+                                    "QuickOutline mask/fill shader is missing or unsupported. " +
+                                    "Retrying in 15 seconds.");
                                 Destroy(outline);
                                 continue;
                             }
@@ -874,6 +882,7 @@ namespace StonewardsPartyHUD
                     {
                         // Fail closed instead of painting teammate geometry
                         // with an invalid shader until the next scene load.
+                        _nextOutlineShaderRetry = Time.unscaledTime + 15f;
                         RemoveOutline(player);
                         continue;
                     }
