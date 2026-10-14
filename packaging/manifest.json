@@ -2,7 +2,7 @@
   "name": "PartyHUD",
   "version_number": "0.2.1",
   "website_url": "https://github.com/thereisnouser/stonewards-party-hud",
-  "description": "A compact client-side Stonewards party HUD with teammate HP, outlines, companion health and wall durability.",
+  "description": "A client-side Stonewards party HUD with teammate HP, host-only ping, outlines, bear and wall health.",
   "dependencies": [
     "BepInEx-BepInExPack-5.4.2305"
   ]
