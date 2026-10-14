@@ -53,6 +53,16 @@ namespace StonewardsPartyHUD
         private static readonly FieldInfo InventoryRootField =
             typeof(InventoryScreen).GetField("inventoryScreen",
                 BindingFlags.Instance | BindingFlags.NonPublic);
+        // Stonewards' LoadingScreen exposes its UI Toolkit element and static
+        // instance in Assembly-CSharp. Use the actual window's visibility
+        // instead of guessing based on scene names or temporary network state.
+        private static readonly FieldInfo LoadingScreenInstanceField =
+            typeof(LoadingScreen).GetField("Instance",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        private static readonly FieldInfo LoadingScreenElementField =
+            typeof(LoadingScreen).GetField("_loadingScreenElement",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
         private static readonly FieldInfo CharacterVisualsParentField =
             typeof(FirstPersonController).GetField("characterVisualsParent",
                 BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -95,6 +105,7 @@ namespace StonewardsPartyHUD
         private int _wallSections;
         private bool _wallBreached;
         private float _nextWarning;
+        private float _nextPingDiagnostic;
         private GUIStyle _headingStyle;
         private GUIStyle _countStyle;
         private GUIStyle _nameStyle;
@@ -224,6 +235,9 @@ namespace StonewardsPartyHUD
                 // Do not infer or fabricate remote ping on ordinary clients.
                 bool canShowHostPing = _showHostPing.Value &&
                     Mirror.NetworkServer.active && Mirror.NetworkClient.active;
+                int remotePlayers = 0;
+                int connectionsFound = 0;
+                int pingsMeasured = 0;
 
                 for (int i = 0; i < roster.Count; i++)
                 {
@@ -245,11 +259,16 @@ namespace StonewardsPartyHUD
 
                     if (canShowHostPing && !entry.IsLocalHost)
                     {
+                        remotePlayers++;
+                        var connection = player.connectionToClient;
+                        if (connection != null)
+                            connectionsFound++;
                         int ping;
-                        if (TryReadHostPing(player.connectionToClient, out ping))
+                        if (TryReadHostPing(connection, out ping))
                         {
                             entry.HasPing = true;
                             entry.PingMs = ping;
+                            pingsMeasured++;
                         }
                     }
 
@@ -296,6 +315,20 @@ namespace StonewardsPartyHUD
                     }
 
                     _players.Add(entry);
+                }
+
+                // An infrequent diagnostic helps distinguish missing
+                // server-side connections, unsupported Mirror RTT and
+                // RTT samples that simply have not arrived yet.
+                if (_showHostPing.Value && canShowHostPing && remotePlayers > 0 &&
+                    pingsMeasured == 0 && Time.unscaledTime >= _nextPingDiagnostic)
+                {
+                    _nextPingDiagnostic = Time.unscaledTime + 20f;
+                    Logger.LogWarning("Host RTT unavailable: remotePlayers=" +
+                        remotePlayers + ", serverConnections=" + connectionsFound +
+                        ", rttMember=" +
+                        (HostConnectionRttProperty != null || HostConnectionRttField != null) +
+                        ". Only actual RTT samples are displayed.");
                 }
             }
             catch (Exception ex)
@@ -736,8 +769,46 @@ namespace StonewardsPartyHUD
             }
         }
 
+        private static bool IsLoadingScreenVisible()
+        {
+            if (LoadingScreenInstanceField == null ||
+                LoadingScreenElementField == null)
+                return false;
+
+            try
+            {
+                var instance = LoadingScreenInstanceField.GetValue(null);
+                if (instance == null)
+                    return false;
+
+                var element = LoadingScreenElementField.GetValue(instance) as VisualElement;
+                if (element == null || element.panel == null)
+                    return false;
+
+                // A hidden parent can otherwise make a child appear visible
+                // according to its own style. Inspect the complete UI chain.
+                for (VisualElement node = element; node != null; node = node.parent)
+                {
+                    var style = node.resolvedStyle;
+                    if (style.display == DisplayStyle.None ||
+                        style.visibility == Visibility.Hidden ||
+                        style.opacity <= 0.01f)
+                        return false;
+                }
+                return true;
+            }
+            catch
+            {
+                // Loading-screen API differences must never crash the HUD.
+                return false;
+            }
+        }
+
         private static bool IsBlockingGameMenuOpen()
         {
+            if (IsLoadingScreenVisible())
+                return true;
+
             // These menus derive from BaseMenu, which tracks visibility using
             // IsOpen. Component activation alone is not a reliable indicator.
             var shop = ShopMenu.Instance;
@@ -771,6 +842,7 @@ namespace StonewardsPartyHUD
         private void OnGUI()
         {
             if (!_enabled.Value || _players.Count == 0 ||
+                !Mirror.NetworkClient.active ||
                 Event.current == null || Event.current.type != EventType.Repaint ||
                 IsBlockingGameMenuOpen())
                 return;
