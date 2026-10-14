@@ -1,6 +1,6 @@
 {
   "name": "PartyHUD",
-  "version_number": "0.2.0",
+  "version_number": "0.2.1",
   "website_url": "https://github.com/thereisnouser/stonewards-party-hud",
   "description": "A compact client-side Stonewards party HUD with teammate HP, outlines, companion health and wall durability.",
   "dependencies": [
