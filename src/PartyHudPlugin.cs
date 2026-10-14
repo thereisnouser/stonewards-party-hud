@@ -25,7 +25,7 @@ namespace StonewardsPartyHUD
         private const float BuildWindowWidth = 348f;
         private const float BuildWindowHeight = 434f;
         private const float BuildRingRowHeight = 42f;
-        private const int BuildRingsPerPage = 7;
+        private const int BuildRingsPerPage = 6;
         private const float BottomHudSafeZone = 132f;
         private const float NativeRosterHeaderSafeZone = 130f;
         private const float NativeRosterPlayerRowSafeZone = 42f;
@@ -33,7 +33,7 @@ namespace StonewardsPartyHUD
         private const float ReferenceScreenHeight = 1080f;
         // Match the approved compact on-screen proportions (~296px wide
         // at 1920x1080 with the default Scale and ReadabilityScale).
-        // Keep fixed-size layout across resolutions; shrink only to fit.
+        // Scale proportionally to resolution, shrinking further only to fit.
         // Existing custom Scale / ReadabilityScale settings still apply.
         private const float PanelSizeBoost = 0.95f;
 
@@ -385,9 +385,17 @@ namespace StonewardsPartyHUD
                             }
                         }
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
+                        build.HasRunData = false;
+                        build.Rings.Clear();
                         build.ReadFailed = true;
+                        if (Time.unscaledTime >= _nextWarning)
+                        {
+                            Logger.LogWarning("Could not read ring build for " +
+                                build.Name + ": " + ex);
+                            _nextWarning = Time.unscaledTime + 10f;
+                        }
                     }
                     _buildPlayers.Add(build);
                 }
@@ -1245,7 +1253,7 @@ namespace StonewardsPartyHUD
             _buildHelpStyle.normal.textColor = new Color(0.92f, 0.83f, 0.70f);
             GUI.Label(new Rect(x + 15f, y + BuildWindowHeight - 28f,
                 BuildWindowWidth - 29f, 18f),
-                "F8 CLOSE   F9 PLAYER   PgUp/PgDn PAGE " +
+                "F8 CLOSE   F9 NEXT   PGUP/DN " +
                 (_buildPage + 1) + "/" + totalPages, _buildHelpStyle);
         }
 
