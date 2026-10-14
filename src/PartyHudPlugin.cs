@@ -62,12 +62,21 @@ namespace StonewardsPartyHUD
         private static readonly FieldInfo OutlineFillMaterialField =
             typeof(QuickOutline).GetField("outlineFillMaterial",
                 BindingFlags.Instance | BindingFlags.NonPublic);
+        // RTT exists per connection on the server in recent Mirror builds,
+        // but use reflection for compatibility with game-bundled versions.
+        private static readonly PropertyInfo HostConnectionRttProperty =
+            typeof(Mirror.NetworkConnectionToClient).GetProperty("rtt",
+                BindingFlags.Instance | BindingFlags.Public);
+        private static readonly FieldInfo HostConnectionRttField =
+            typeof(Mirror.NetworkConnectionToClient).GetField("rtt",
+                BindingFlags.Instance | BindingFlags.Public);
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<float> _scale;
         private ConfigEntry<float> _readabilityScale;
         private ConfigEntry<bool> _autoScaleToResolution;
         private ConfigEntry<bool> _showCompanionHealth;
         private ConfigEntry<bool> _showWallHealth;
+        private ConfigEntry<bool> _showHostPing;
         private ConfigEntry<bool> _showTeammateOutlines;
         private ConfigEntry<bool> _showPlayerNames;
         private ConfigEntry<float> _playerNameVerticalOffset;
@@ -97,6 +106,7 @@ namespace StonewardsPartyHUD
         private GUIStyle _alertStyle;
         private GUIStyle _worldNameStyle;
         private GUIStyle _wallStatusStyle;
+        private GUIStyle _pingStyle;
         private Font _nativeUiFont;
         private float _nextNativeFontLookup;
 
@@ -111,6 +121,10 @@ namespace StonewardsPartyHUD
             public float MaxHealth;
             public bool HasStats;
             public bool IsDead;
+            public bool ShowHostPing;
+            public bool IsLocalHost;
+            public bool HasPing;
+            public int PingMs;
             public CompanionEntry Companion;
         }
 
@@ -143,6 +157,8 @@ namespace StonewardsPartyHUD
                 "Show a Hunter's companion health directly below the Hunter's entry.");
             _showWallHealth = Config.Bind("General", "ShowWallHealth", true,
                 "Show combined defensive wall durability beneath the party roster.");
+            _showHostPing = Config.Bind("Appearance", "ShowHostPing", true,
+                "On the hosting player's screen, show each remote player's real Mirror connection RTT in ms. Other clients never display unverified peer ping.");
             _showTeammateOutlines = Config.Bind("TeammateOutlines", "Enabled", true,
                 "Outline remote teammates in the world (never the local player).");
             _showPlayerNames = Config.Bind("TeammateOutlines", "ShowPlayerNames", true,
@@ -204,6 +220,11 @@ namespace StonewardsPartyHUD
                 if (roster == null)
                     return;
 
+                // Only a listen-server host has its peers' server-side RTT.
+                // Do not infer or fabricate remote ping on ordinary clients.
+                bool canShowHostPing = _showHostPing.Value &&
+                    Mirror.NetworkServer.active && Mirror.NetworkClient.active;
+
                 for (int i = 0; i < roster.Count; i++)
                 {
                     var player = roster[i];
@@ -217,8 +238,20 @@ namespace StonewardsPartyHUD
                         ClassName = playerClass.ToString(),
                         Badge = ClassBadge(playerClass),
                         ClassIcon = FindClassIcon(player, playerClass),
-                        Accent = ClassColor(playerClass)
+                        Accent = ClassColor(playerClass),
+                        ShowHostPing = canShowHostPing,
+                        IsLocalHost = canShowHostPing && player.isLocalPlayer
                     };
+
+                    if (canShowHostPing && !entry.IsLocalHost)
+                    {
+                        int ping;
+                        if (TryReadHostPing(player.connectionToClient, out ping))
+                        {
+                            entry.HasPing = true;
+                            entry.PingMs = ping;
+                        }
+                    }
 
                     var stats = player.PlayerStats;
                     if (stats != null)
@@ -273,6 +306,38 @@ namespace StonewardsPartyHUD
                     Logger.LogWarning("Could not read party state: " + ex);
                     _nextWarning = Time.unscaledTime + 10f;
                 }
+            }
+        }
+
+        private static bool TryReadHostPing(
+            Mirror.NetworkConnectionToClient connection, out int pingMs)
+        {
+            pingMs = 0;
+            if (connection == null ||
+                (HostConnectionRttProperty == null && HostConnectionRttField == null))
+                return false;
+
+            try
+            {
+                object value = HostConnectionRttProperty != null
+                    ? HostConnectionRttProperty.GetValue(connection, null)
+                    : HostConnectionRttField.GetValue(connection);
+                if (value == null)
+                    return false;
+
+                double rttSeconds = Convert.ToDouble(value);
+                if (double.IsNaN(rttSeconds) || double.IsInfinity(rttSeconds) ||
+                    rttSeconds <= 0d)
+                    return false;
+
+                pingMs = (int)Math.Max(1d,
+                    Math.Round(Math.Min(rttSeconds * 1000d, 99999d)));
+                return true;
+            }
+            catch
+            {
+                // An unsupported Mirror RTT API never breaks the party roster.
+                return false;
             }
         }
 
@@ -875,8 +940,28 @@ namespace StonewardsPartyHUD
             _statusStyle.normal.textColor = player.IsDead
                 ? new Color(1f, 0.52f, 0.50f)
                 : new Color(0.89f, 0.83f, 0.72f);
-            GUI.Label(new Rect(x + 155f, rowY + 30f, 111f, 17f),
-                player.IsDead ? "DOWN - REVIVE" : "ALIVE", _statusStyle);
+            if (player.ShowHostPing)
+            {
+                string pingLabel = player.IsLocalHost
+                    ? "HOST"
+                    : !player.HasPing ? "--"
+                        : player.PingMs > 999 ? "999+ms" : player.PingMs + "ms";
+                _pingStyle.normal.textColor = player.IsLocalHost
+                    ? new Color(0.95f, 0.81f, 0.56f)
+                    : !player.HasPing ? new Color(0.61f, 0.63f, 0.66f)
+                        : player.PingMs < 100 ? new Color(0.47f, 0.87f, 0.56f)
+                            : player.PingMs < 200 ? new Color(0.98f, 0.76f, 0.37f)
+                                : new Color(0.98f, 0.42f, 0.42f);
+                GUI.Label(new Rect(x + 156f, rowY + 30f, 58f, 17f),
+                    pingLabel, _pingStyle);
+                GUI.Label(new Rect(x + 216f, rowY + 30f, 50f, 17f),
+                    player.IsDead ? "DOWN" : "ALIVE", _statusStyle);
+            }
+            else
+            {
+                GUI.Label(new Rect(x + 155f, rowY + 30f, 111f, 17f),
+                    player.IsDead ? "DOWN - REVIVE" : "ALIVE", _statusStyle);
+            }
 
             const float barWidth = PanelWidth - 82f;
             Fill(new Rect(x + 62f, rowY + 53f, barWidth, 8f), BarTrack);
@@ -1001,6 +1086,7 @@ namespace StonewardsPartyHUD
                 _worldNameStyle = MakeStyle(12, Color.white, TextAnchor.MiddleCenter, true);
                 _wallStatusStyle = MakeStyle(12, new Color(0.98f, 0.79f, 0.51f),
                     TextAnchor.MiddleLeft, true);
+                _pingStyle = MakeStyle(12, Color.white, TextAnchor.MiddleLeft, true);
             }
             TryApplyNativeFont();
         }
@@ -1029,7 +1115,7 @@ namespace StonewardsPartyHUD
             {
                 _headingStyle, _countStyle, _nameStyle, _classStyle,
                 _badgeStyle, _healthStyle, _statusStyle, _companionStyle,
-                _alertStyle, _wallStatusStyle
+                _alertStyle, _wallStatusStyle, _pingStyle
             };
             foreach (var style in styles)
             {
@@ -1046,6 +1132,7 @@ namespace StonewardsPartyHUD
             _companionStyle.fontSize = 16;
             _alertStyle.fontSize = 15;
             _wallStatusStyle.fontSize = 16;
+            _pingStyle.fontSize = 13;
             Logger.LogInfo("Party HUD is using Stonewards UI font: " + _nativeUiFont.name);
         }
 
