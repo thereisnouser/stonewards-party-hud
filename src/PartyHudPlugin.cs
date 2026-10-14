@@ -13,7 +13,7 @@ namespace StonewardsPartyHUD
     {
         public const string PluginGuid = "community.stonewards.partyhud";
         public const string PluginName = "Stonewards Party HUD";
-        public const string PluginVersion = "0.2.0";
+        public const string PluginVersion = "0.2.1";
 
         private const float RefreshSeconds = 0.2f;
         private const float PanelWidth = 278f;
@@ -25,8 +25,6 @@ namespace StonewardsPartyHUD
         private const float BottomHudSafeZone = 132f;
         private const float NativeRosterHeaderSafeZone = 130f;
         private const float NativeRosterPlayerRowSafeZone = 42f;
-        private const float ReferenceScreenWidth = 1920f;
-        private const float ReferenceScreenHeight = 1080f;
         // Keep the pixel UI physically larger while narrowing the panel.
         // Existing appearance configuration and viewport fitting still apply.
         private const float PanelSizeBoost = 1.25f;
@@ -140,7 +138,7 @@ namespace StonewardsPartyHUD
             _readabilityScale = Config.Bind("Appearance", "ReadabilityScale", 1.12f,
                 "Extra panel enlargement (1.0 - 1.4), also applied to existing configurations.");
             _autoScaleToResolution = Config.Bind("Appearance", "AutoScaleToResolution", true,
-                "Scale down the panel on screens below 1920x1080; manual Scale and ReadabilityScale remain available.");
+                "Keep the same HUD size at every resolution. Shrink only if needed to fit the screen and native UI safe zones. Disable to fit only the screen edges.");
             _showCompanionHealth = Config.Bind("Appearance", "ShowCompanionHealth", true,
                 "Show a Hunter's companion health directly below the Hunter's entry.");
             _showWallHealth = Config.Bind("General", "ShowWallHealth", true,
@@ -722,23 +720,36 @@ namespace StonewardsPartyHUD
                 if (_players[i].Companion != null)
                     height += CompanionRowHeight;
 
-            // Match current sizing at 1920x1080, adapt below it, and avoid
-            // inflating the panel beyond user settings on larger displays.
-            float automaticScale = 1f;
-            if (_autoScaleToResolution.Value)
-            {
-                float relativeWidth = Screen.width / ReferenceScreenWidth;
-                float relativeHeight = Screen.height / ReferenceScreenHeight;
-                automaticScale = Mathf.Clamp(
-                    Mathf.Min(relativeWidth, relativeHeight), 0.65f, 1f);
-            }
-
+            // Resolution-independent by default. Use a fixed pixel scale on
+            // 1080p/1440p/4K and smaller windows alike, unless the complete
+            // panel actually needs more room than is available.
             float scale = Mathf.Clamp(_scale.Value *
                 Mathf.Clamp(_readabilityScale.Value, 1f, 1.4f) *
-                PanelSizeBoost * automaticScale, 0.55f, 1.8f);
-            // Preserve the safety fit for small windows and large parties.
+                PanelSizeBoost, 0.55f, 1.8f);
+
+            // The native player roster grows from the upper-left corner;
+            // calculate its reserved space before deciding whether to shrink.
+            float topOffset = _topOffset.Value;
+            if (_avoidNativeRoster.Value)
+                topOffset = Mathf.Max(topOffset,
+                    NativeRosterHeaderSafeZone + _players.Count * NativeRosterPlayerRowSafeZone);
+
+            // Always keep the window inside the display, including four
+            // players, companion rows and an optional wall.
             scale = Mathf.Min(scale, (Screen.width - 16f) / PanelWidth,
                 (Screen.height - 16f) / height);
+
+            if (_autoScaleToResolution.Value)
+            {
+                // Extra fit for the reserved UI space, only when required.
+                // False preserves manual sizing while still keeping the
+                // panel itself inside the display.
+                float reservedOffset = _anchor.Value == PanelAnchor.TopLeft
+                    ? Mathf.Max(8f, topOffset)
+                    : Mathf.Max(8f, Mathf.Max(_bottomOffset.Value, BottomHudSafeZone));
+                scale = Mathf.Min(scale,
+                    (Screen.height - 8f) / (height + reservedOffset));
+            }
             if (scale <= 0f)
                 return;
 
@@ -746,13 +757,6 @@ namespace StonewardsPartyHUD
             float screenHeight = Screen.height / scale;
             float x = Mathf.Clamp(_leftOffset.Value, 8f,
                 Mathf.Max(8f, screenWidth - PanelWidth - 8f));
-            // The native player roster grows downwards from the upper-left
-            // corner. Respect its occupied space even when an older config
-            // still contains the original small TopOffset of 105.
-            float topOffset = _topOffset.Value;
-            if (_avoidNativeRoster.Value)
-                topOffset = Mathf.Max(topOffset,
-                    NativeRosterHeaderSafeZone + _players.Count * NativeRosterPlayerRowSafeZone);
 
             float requestedY = _anchor.Value == PanelAnchor.TopLeft
                 ? topOffset
