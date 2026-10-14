@@ -72,7 +72,7 @@ if ($ProfileDir) {
     if (Test-Path -LiteralPath $steamCopy -PathType Leaf) {
         Write-Warning "A manual Party HUD installation still exists in Steam: $steamCopy"
     }
-    Write-Host 'Expected runtime log line: Party HUD v0.1.1 initialized. (in the ACTIVE profile BepInEx/LogOutput.log)'
+    Write-Host "Expected runtime log line: Party HUD v$pluginVersion initialized. (in the ACTIVE profile BepInEx/LogOutput.log)"
 }
 if ($ProfileDir) {
     Write-Host 'Launch with Start modded using this profile. Disable the public PartyHUD package in this profile to prevent duplicate plugins.'
