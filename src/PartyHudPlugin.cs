@@ -13,7 +13,7 @@ namespace StonewardsPartyHUD
     {
         public const string PluginGuid = "community.stonewards.partyhud";
         public const string PluginName = "Stonewards Party HUD";
-        public const string PluginVersion = "0.2.1";
+        public const string PluginVersion = "0.3.0";
 
         private const float RefreshSeconds = 0.2f;
         private const float PanelWidth = 278f;
@@ -22,6 +22,10 @@ namespace StonewardsPartyHUD
         private const float CompanionRowHeight = 38f;
         private const float WallRowHeight = 66f;
         private const float FooterPadding = 8f;
+        private const float BuildWindowWidth = 348f;
+        private const float BuildWindowHeight = 434f;
+        private const float BuildRingRowHeight = 42f;
+        private const int BuildRingsPerPage = 7;
         private const float BottomHudSafeZone = 132f;
         private const float NativeRosterHeaderSafeZone = 130f;
         private const float NativeRosterPlayerRowSafeZone = 42f;
@@ -52,6 +56,13 @@ namespace StonewardsPartyHUD
         private readonly Dictionary<FirstPersonController, OutlineEntry> _teamOutlines =
             new Dictionary<FirstPersonController, OutlineEntry>();
         private readonly List<FirstPersonController> _expiredOutlines = new List<FirstPersonController>();
+        // Read the host's existing server-side run data; never send network
+        // messages or assume an ordinary client can inspect other builds.
+        private readonly List<PlayerBuildEntry> _buildPlayers = new List<PlayerBuildEntry>();
+        private bool _showBuilds;
+        private float _nextBuildRefresh;
+        private int _buildPlayerIndex;
+        private int _buildPage;
         // InventoryScreen does not inherit BaseMenu. Its UI Toolkit root
         // switches between DisplayStyle.Flex and None on opening/closing.
         private static readonly FieldInfo InventoryRootField =
@@ -91,6 +102,7 @@ namespace StonewardsPartyHUD
         private ConfigEntry<bool> _showCompanionHealth;
         private ConfigEntry<bool> _showWallHealth;
         private ConfigEntry<bool> _showHostPing;
+        private ConfigEntry<bool> _enableBuildInspector;
         private ConfigEntry<bool> _showTeammateOutlines;
         private ConfigEntry<bool> _showPlayerNames;
         private ConfigEntry<float> _playerNameVerticalOffset;
@@ -122,6 +134,9 @@ namespace StonewardsPartyHUD
         private GUIStyle _worldNameStyle;
         private GUIStyle _wallStatusStyle;
         private GUIStyle _pingStyle;
+        private GUIStyle _buildNameStyle;
+        private GUIStyle _buildDetailStyle;
+        private GUIStyle _buildHelpStyle;
         private Font _nativeUiFont;
         private float _nextNativeFontLookup;
 
@@ -158,6 +173,24 @@ namespace StonewardsPartyHUD
             public bool IsKnockedOut;
         }
 
+        private sealed class PlayerBuildEntry
+        {
+            public FirstPersonController Player;
+            public string Name;
+            public bool HasRunData;
+            public bool ReadFailed;
+            public readonly List<BuildRingEntry> Rings = new List<BuildRingEntry>();
+        }
+
+        private sealed class BuildRingEntry
+        {
+            public string ID;
+            public string Name;
+            public Rarity Rarity;
+            public Sprite Icon;
+            public int Picks;
+        }
+
         private void Awake()
         {
             _enabled = Config.Bind("General", "Enabled", true,
@@ -174,6 +207,8 @@ namespace StonewardsPartyHUD
                 "Show combined defensive wall durability beneath the party roster.");
             _showHostPing = Config.Bind("Appearance", "ShowHostPing", true,
                 "On the hosting player's screen, show each remote player's real Mirror connection RTT in ms. Other clients never display unverified peer ping.");
+            _enableBuildInspector = Config.Bind("BuildInspector", "Enabled", true,
+                "Host-only teammate ring inspector: F8 to open/close, F9 to switch players, PageDown/PageUp to browse rings. No teammate mod needed.");
             _showTeammateOutlines = Config.Bind("TeammateOutlines", "Enabled", true,
                 "Outline remote teammates in the world (never the local player).");
             _showPlayerNames = Config.Bind("TeammateOutlines", "ShowPlayerNames", true,
@@ -202,7 +237,35 @@ namespace StonewardsPartyHUD
             if (!_enabled.Value)
             {
                 RemoveAllOutlines();
+                CloseBuildInspector();
                 return;
+            }
+
+            // The build inspector is strictly host-side. Normal clients never
+            // receive a complete list of the other players' selected upgrades.
+            bool canInspect = _enableBuildInspector.Value &&
+                Mirror.NetworkServer.active && Mirror.NetworkClient.active;
+            if (!canInspect)
+                CloseBuildInspector();
+            else if (!IsBlockingGameMenuOpen())
+            {
+                if (Input.GetKeyDown(KeyCode.F8))
+                {
+                    _showBuilds = !_showBuilds;
+                    _nextBuildRefresh = 0f;
+                    if (!_showBuilds)
+                        _buildPlayers.Clear();
+                }
+                if (_showBuilds && Input.GetKeyDown(KeyCode.F9) &&
+                    _buildPlayers.Count > 0)
+                {
+                    _buildPlayerIndex = (_buildPlayerIndex + 1) % _buildPlayers.Count;
+                    _buildPage = 0;
+                }
+                if (_showBuilds && Input.GetKeyDown(KeyCode.PageDown))
+                    _buildPage++;
+                if (_showBuilds && Input.GetKeyDown(KeyCode.PageUp))
+                    _buildPage = Math.Max(0, _buildPage - 1);
             }
 
             if (Time.unscaledTime < _nextRefresh)
@@ -212,16 +275,141 @@ namespace StonewardsPartyHUD
             RefreshRoster();
             RefreshWallHealth();
             UpdateTeammateOutlines();
+            if (_showBuilds && Time.unscaledTime >= _nextBuildRefresh)
+            {
+                _nextBuildRefresh = Time.unscaledTime + 0.8f;
+                RefreshBuildInspector();
+            }
         }
 
         private void OnDisable()
         {
             RemoveAllOutlines();
+            CloseBuildInspector();
         }
 
         private void OnDestroy()
         {
             RemoveAllOutlines();
+            CloseBuildInspector();
+        }
+
+        private void CloseBuildInspector()
+        {
+            _showBuilds = false;
+            _buildPlayers.Clear();
+            _buildPlayerIndex = 0;
+            _buildPage = 0;
+        }
+
+        private void RefreshBuildInspector()
+        {
+            FirstPersonController selected = _buildPlayerIndex >= 0 &&
+                _buildPlayerIndex < _buildPlayers.Count
+                ? _buildPlayers[_buildPlayerIndex].Player : null;
+
+            _buildPlayers.Clear();
+            try
+            {
+                var roster = FirstPersonController.LocalPlayers;
+                if (roster == null)
+                    return;
+
+                var manager = RogueLikeUpgradeManager.Instance;
+                foreach (var player in roster)
+                {
+                    if (player == null || player.isLocalPlayer)
+                        continue;
+
+                    var build = new PlayerBuildEntry
+                    {
+                        Player = player,
+                        Name = CleanName(player.NetworkplayerName)
+                    };
+                    try
+                    {
+                        // This object is maintained on the game's host for
+                        // each player; it is NOT a replicated client roster.
+                        RunPlayerData runData = player.RunPlayerData;
+                        if (runData != null && runData.rogueUpgrades != null)
+                        {
+                            build.HasRunData = true;
+                            foreach (RogueUpgradeData saved in runData.rogueUpgrades)
+                            {
+                                if (saved == null || string.IsNullOrWhiteSpace(saved.upgradeID))
+                                    continue;
+
+                                // Separate rarity variants, so we never claim
+                                // a higher level from an unrelated rarity pick.
+                                BuildRingEntry existing = null;
+                                foreach (var ring in build.Rings)
+                                    if (ring.ID == saved.upgradeID && ring.Rarity == saved.rarity)
+                                    {
+                                        existing = ring;
+                                        break;
+                                    }
+
+                                if (existing != null)
+                                {
+                                    existing.Picks++;
+                                    continue;
+                                }
+
+                                RogueLikeUpgradeSO definition = manager != null
+                                    ? manager.GetUpgradeSOByID(saved.upgradeID) : null;
+                                string title = saved.upgradeID;
+                                Sprite icon = null;
+                                if (definition != null)
+                                {
+                                    try
+                                    {
+                                        var localized = definition.GetLocalizedTitle();
+                                        if (!string.IsNullOrWhiteSpace(localized))
+                                            title = localized;
+                                        icon = definition.Icon;
+                                    }
+                                    catch
+                                    {
+                                        // Keep the precise upgrade ID visible
+                                        // if localization/assets are unavailable.
+                                    }
+                                }
+                                build.Rings.Add(new BuildRingEntry
+                                {
+                                    ID = saved.upgradeID,
+                                    Name = title,
+                                    Rarity = saved.rarity,
+                                    Icon = icon,
+                                    Picks = 1
+                                });
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        build.ReadFailed = true;
+                    }
+                    _buildPlayers.Add(build);
+                }
+            }
+            catch (Exception ex)
+            {
+                _buildPlayers.Clear();
+                if (Time.unscaledTime >= _nextWarning)
+                {
+                    Logger.LogWarning("Could not inspect host party builds: " + ex);
+                    _nextWarning = Time.unscaledTime + 10f;
+                }
+            }
+
+            _buildPlayerIndex = 0;
+            if (selected != null)
+                for (int i = 0; i < _buildPlayers.Count; i++)
+                    if (_buildPlayers[i].Player == selected)
+                    {
+                        _buildPlayerIndex = i;
+                        break;
+                    }
         }
 
         // Read-only client-side state. No Harmony patches, network messages or game mutations.
