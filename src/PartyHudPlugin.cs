@@ -25,6 +25,8 @@ namespace StonewardsPartyHUD
         private const float BottomHudSafeZone = 132f;
         private const float NativeRosterHeaderSafeZone = 130f;
         private const float NativeRosterPlayerRowSafeZone = 42f;
+        private const float ReferenceScreenWidth = 1920f;
+        private const float ReferenceScreenHeight = 1080f;
         // Match the approved compact on-screen proportions (~296px wide
         // at 1920x1080 with the default Scale and ReadabilityScale).
         // Keep fixed-size layout across resolutions; shrink only to fit.
@@ -165,7 +167,7 @@ namespace StonewardsPartyHUD
             _readabilityScale = Config.Bind("Appearance", "ReadabilityScale", 1.12f,
                 "Extra panel enlargement (1.0 - 1.4), also applied to existing configurations.");
             _autoScaleToResolution = Config.Bind("Appearance", "AutoScaleToResolution", true,
-                "Keep the same HUD size at every resolution. Shrink only if needed to fit the screen and native UI safe zones. Disable to fit only the screen edges.");
+                "Match the HUD's on-screen proportions across resolutions (reference 1920x1080). Shrink to fit native UI when necessary. Disable for fixed pixel sizing.");
             _showCompanionHealth = Config.Bind("Appearance", "ShowCompanionHealth", true,
                 "Show a Hunter's companion health directly below the Hunter's entry.");
             _showWallHealth = Config.Bind("General", "ShowWallHealth", true,
@@ -859,12 +861,18 @@ namespace StonewardsPartyHUD
                 if (_players[i].Companion != null)
                     height += CompanionRowHeight;
 
-            // Resolution-independent by default. Use a fixed pixel scale on
-            // 1080p/1440p/4K and smaller windows alike, unless the complete
-            // panel actually needs more room than is available.
-            float scale = Mathf.Clamp(_scale.Value *
+            // Match the same visual proportion of the screen rather than
+            // forcing the same absolute pixel size on every resolution.
+            // Clamp manual preferences BEFORE adapting to resolution so that
+            // high-resolution screens can scale above the usual 1.8x limit.
+            float baseScale = Mathf.Clamp(_scale.Value *
                 Mathf.Clamp(_readabilityScale.Value, 1f, 1.4f) *
                 PanelSizeBoost, 0.55f, 1.8f);
+            float resolutionScale = _autoScaleToResolution.Value
+                ? Mathf.Min(Screen.width / ReferenceScreenWidth,
+                    Screen.height / ReferenceScreenHeight)
+                : 1f;
+            float scale = baseScale * resolutionScale;
 
             // The native player roster grows from the upper-left corner;
             // calculate its reserved space before deciding whether to shrink.
