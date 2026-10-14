@@ -34,7 +34,7 @@ powershell -ExecutionPolicy Bypass -File .\build-and-install.ps1 -GameDir "F:\St
 
 This uses `<profile>/BepInEx/core/BepInEx.dll` for compilation and installs the current DLL in `<profile>/BepInEx/plugins/StonewardsPartyHUD/`, **not** in the Steam game directory. Launch through **Start modded** with that same profile, or use Steam if you have configured its launch options to launch that exact profile. **When you switch r2modman profiles, update Steam launch options too**; otherwise Steam can silently load an older profile/mod build. A missing profile BepInEx DLL is a setup error, not a reason to copy mod files into Steam.
 
-When finished, delete only the development-plugin folder `<profile>/BepInEx/plugins/StonewardsPartyHUD/` and re-enable the published PartyHUD package. A published Thunderstore package version is immutable; do not upload a local development build as v0.1.0.
+When finished, delete only the development-plugin folder `<profile>/BepInEx/plugins/StonewardsPartyHUD/` and re-enable the published PartyHUD package. A published Thunderstore package version is immutable; always package a newly built DLL with the matching version number.
 
 ## Prepare a Thunderstore release
 
@@ -57,4 +57,4 @@ The packing script creates a ZIP only; it does not publish or tag releases. Thun
 
 ## Verified status
 
-Previous source builds were compiled and installed successfully on Windows, and the user confirmed functioning party HUD, Hunter companion HP, original class icons and teammate outlines in live multiplayer. Subsequent menu-visibility fixes were also tested locally. The corrected ZIP was imported into a clean r2modman profile and Party HUD was confirmed visible in-game. Thunderstore's upload UI reported success for v0.1.0, and the user supplied the [public package listing](https://thunderstore.io/c/stonewards/p/thereisnouser/PartyHUD/). Fresh installation **from the public catalog**, host/client edge cases and later game-version compatibility are still pending. For release tracking, see [Issue #4](https://github.com/thereisnouser/stonewards-party-hud/issues/4).
+The user confirmed the published v0.2.0 HUD and has accepted v0.2.1's resolution-proportional panel scaling and host-side ping in live gameplay. Source/manifest are at v0.2.1; its ZIP must be built from the current source, checked in a clean manager profile, and then uploaded under the existing Thunderstore package. The packaging script checks the source, manifest and compiled DLL versions. The uploader is manual; the script never publishes a release. See [Issue #4](https://github.com/thereisnouser/stonewards-party-hud/issues/4) for release progress.
