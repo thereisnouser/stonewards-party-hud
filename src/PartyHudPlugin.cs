@@ -645,6 +645,59 @@ namespace StonewardsPartyHUD
             return component != null ? component.gameObject : null;
         }
 
+        private static bool IsShaderUsable(Material material)
+        {
+            if (material == null || material.shader == null)
+                return false;
+
+            var shader = material.shader;
+            // Unity's internal error shader paints entire meshes bright magenta.
+            return shader.isSupported &&
+                shader.name.IndexOf("InternalErrorShader",
+                    StringComparison.OrdinalIgnoreCase) < 0;
+        }
+
+        private static Renderer[] FindOutlineRenderers(GameObject root)
+        {
+            // QuickOutline appends two material passes to every renderer it is
+            // given. VFX, particles, trails and other special renderers cannot
+            // safely use these passes (see Unity issue UUM-73492).
+            var supported = new List<Renderer>();
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                if (!(renderer is MeshRenderer) &&
+                    !(renderer is SkinnedMeshRenderer))
+                    continue;
+
+                var materials = renderer.sharedMaterials;
+                if (materials == null || materials.Length == 0)
+                    continue;
+
+                bool valid = true;
+                foreach (var material in materials)
+                    if (!IsShaderUsable(material))
+                    {
+                        valid = false;
+                        break;
+                    }
+
+                if (valid)
+                    supported.Add(renderer);
+            }
+            return supported.ToArray();
+        }
+
+        private static bool AreOutlineShadersUsable(QuickOutline outline)
+        {
+            if (outline == null || OutlineMaskMaterialField == null ||
+                OutlineFillMaterialField == null)
+                return false;
+
+            var mask = OutlineMaskMaterialField.GetValue(outline) as Material;
+            var fill = OutlineFillMaterialField.GetValue(outline) as Material;
+            return IsShaderUsable(mask) && IsShaderUsable(fill);
+        }
+
         private static bool SameRenderers(Renderer[] previous, Renderer[] current)
         {
             if (previous == null || current == null || previous.Length != current.Length)
@@ -738,7 +791,7 @@ namespace StonewardsPartyHUD
                     if (root == null || !root.activeInHierarchy)
                         continue;
 
-                    var renderers = root.GetComponentsInChildren<Renderer>(true);
+                    var renderers = FindOutlineRenderers(root);
                     if (renderers.Length == 0)
                         continue;
 
@@ -775,11 +828,27 @@ namespace StonewardsPartyHUD
                             outline.OutlineColor = new Color(0.24f, 0.88f, 0.96f, 1f);
                             outline.OutlineWidth = Mathf.Clamp(_outlineWidth.Value, 0.5f, 6f);
                             outline.Init(renderers);
+
+                            // Never attach QuickOutline passes that resolve to
+                            // unsupported/error shaders: they can turn a whole
+                            // teammate into a solid magenta silhouette.
+                            if (!AreOutlineShadersUsable(outline))
+                            {
+                                Logger.LogWarning("Skipped teammate outline: " +
+                                    "QuickOutline mask/fill shader is missing or unsupported.");
+                                Destroy(outline);
+                                continue;
+                            }
+
                             outline.enabled = true;
                         }
                         catch
                         {
-                            Destroy(outline);
+                            if (outline != null)
+                            {
+                                outline.enabled = false;
+                                Destroy(outline);
+                            }
                             throw;
                         }
 
@@ -801,6 +870,14 @@ namespace StonewardsPartyHUD
                     // Some game updates may disable our component or replace
                     // renderer materials without changing the renderer objects.
                     // Restore only our own materials, and at most once per 2 s.
+                    if (!AreOutlineShadersUsable(entry.Component))
+                    {
+                        // Fail closed instead of painting teammate geometry
+                        // with an invalid shader until the next scene load.
+                        RemoveOutline(player);
+                        continue;
+                    }
+
                     if (!entry.Component.enabled)
                         entry.Component.enabled = true;
 
@@ -809,8 +886,11 @@ namespace StonewardsPartyHUD
                         entry.NextMaterialCheck = Time.unscaledTime + 2f;
                         if (IsOutlineMaterialMissing(entry))
                         {
-                            entry.Component.enabled = false;
-                            entry.Component.enabled = true;
+                            // Do not toggle an outline against a renderer whose
+                            // materials were swapped in-game: retire it cleanly
+                            // and rebuild with a fresh compatible mesh list.
+                            RemoveOutline(player);
+                            continue;
                         }
                     }
 
