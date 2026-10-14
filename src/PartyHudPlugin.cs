@@ -178,7 +178,6 @@ namespace StonewardsPartyHUD
             public FirstPersonController Player;
             public string Name;
             public bool HasRunData;
-            public bool ReadFailed;
             public readonly List<BuildRingEntry> Rings = new List<BuildRingEntry>();
         }
 
@@ -355,8 +354,17 @@ namespace StonewardsPartyHUD
                                     continue;
                                 }
 
-                                RogueLikeUpgradeSO definition = manager != null
-                                    ? manager.GetUpgradeSOByID(saved.upgradeID) : null;
+                                RogueLikeUpgradeSO definition = null;
+                                try
+                                {
+                                    if (manager != null)
+                                        definition = manager.GetUpgradeSOByID(saved.upgradeID);
+                                }
+                                catch
+                                {
+                                    // Missing definitions must not hide other
+                                    // correctly recorded rings from the host.
+                                }
                                 string title = saved.upgradeID;
                                 Sprite icon = null;
                                 if (definition != null)
@@ -389,7 +397,6 @@ namespace StonewardsPartyHUD
                     {
                         build.HasRunData = false;
                         build.Rings.Clear();
-                        build.ReadFailed = true;
                         if (Time.unscaledTime >= _nextWarning)
                         {
                             Logger.LogWarning("Could not read ring build for " +
@@ -1207,7 +1214,7 @@ namespace StonewardsPartyHUD
             string summary = !selected.HasRunData
                 ? "BUILD DATA UNAVAILABLE"
                 : selected.Rings.Count == 0 ? "NO RINGS RECORDED"
-                    : selected.Rings.Count + " DISTINCT RARITY ENTRIES";
+                    : selected.Rings.Count + " RING VARIANTS";
             GUI.Label(new Rect(x + 18f, y + 80f, BuildWindowWidth - 36f, 23f),
                 summary, _buildDetailStyle);
             Fill(new Rect(x + 12f, y + 108f, BuildWindowWidth - 24f, 1f),
