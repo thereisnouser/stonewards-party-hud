@@ -1,6 +1,6 @@
 {
   "name": "PartyHUD",
-  "version_number": "0.3.0",
+  "version_number": "0.3.1",
   "website_url": "https://github.com/thereisnouser/stonewards-party-hud",
   "description": "A client-side Stonewards party HUD with HP, host-only ping, teammate ring builds, outlines and companion health.",
   "dependencies": [
