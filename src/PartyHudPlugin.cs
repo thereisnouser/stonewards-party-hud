@@ -1104,6 +1104,17 @@ namespace StonewardsPartyHUD
             {
                 GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
                 DrawPanel(x, y, height);
+                if (_showBuilds && Mirror.NetworkServer.active &&
+                    Mirror.NetworkClient.active && _enableBuildInspector.Value)
+                {
+                    // Separate optional window, adjacent to the normal HUD.
+                    // Keep it on-screen when the HUD is moved by the user.
+                    float detailsX = Mathf.Clamp(x + PanelWidth + 12f, 8f,
+                        Mathf.Max(8f, screenWidth - BuildWindowWidth - 8f));
+                    float detailsY = Mathf.Clamp(y, 8f,
+                        Mathf.Max(8f, screenHeight - BuildWindowHeight - 8f));
+                    DrawBuildInspector(detailsX, detailsY);
+                }
             }
             finally
             {
@@ -1128,6 +1139,10 @@ namespace StonewardsPartyHUD
             if (downed > 0)
                 GUI.Label(new Rect(x + 14f, y + 28f, 116f, 18f),
                     downed + " DOWN", _alertStyle);
+            else if (_enableBuildInspector.Value &&
+                Mirror.NetworkServer.active && Mirror.NetworkClient.active)
+                GUI.Label(new Rect(x + 14f, y + 28f, 116f, 18f),
+                    _showBuilds ? "F8 CLOSE" : "F8 BUILDS", _buildHelpStyle);
             GUI.Label(new Rect(x + PanelWidth - 80f, y + 2f, 66f, 29f),
                 _players.Count + " / 4", _countStyle);
 
@@ -1144,6 +1159,106 @@ namespace StonewardsPartyHUD
             }
             if (_hasWall)
                 DrawWallHealth(x, rowY);
+        }
+
+        private void DrawBuildInspector(float x, float y)
+        {
+            DrawStonewardsWindow(x, y, BuildWindowWidth, BuildWindowHeight);
+            GUI.Label(new Rect(x + 12f, y + 2f, BuildWindowWidth - 24f, 29f),
+                "PLAYER BUILD", _headingStyle);
+
+            if (_buildPlayers.Count == 0)
+            {
+                GUI.Label(new Rect(x + 18f, y + 70f,
+                    BuildWindowWidth - 36f, 28f),
+                    "NO TEAMMATES TO INSPECT", _buildNameStyle);
+                GUI.Label(new Rect(x + 18f, y + 103f,
+                    BuildWindowWidth - 36f, 30f),
+                    "Only the hosting player can inspect party rings.",
+                    _buildDetailStyle);
+                GUI.Label(new Rect(x + 16f, y + BuildWindowHeight - 28f,
+                    BuildWindowWidth - 32f, 18f),
+                    "F8 CLOSE", _buildHelpStyle);
+                return;
+            }
+
+            _buildPlayerIndex = Mathf.Clamp(_buildPlayerIndex, 0,
+                _buildPlayers.Count - 1);
+            var selected = _buildPlayers[_buildPlayerIndex];
+            int totalPages = Mathf.Max(1,
+                (selected.Rings.Count + BuildRingsPerPage - 1) / BuildRingsPerPage);
+            _buildPage = Mathf.Clamp(_buildPage, 0, totalPages - 1);
+
+            GUI.Label(new Rect(x + 18f, y + 53f, BuildWindowWidth - 105f, 26f),
+                FitText(selected.Name, _buildNameStyle, BuildWindowWidth - 105f),
+                _buildNameStyle);
+            GUI.Label(new Rect(x + BuildWindowWidth - 85f, y + 55f, 70f, 22f),
+                (_buildPlayerIndex + 1) + " / " + _buildPlayers.Count,
+                _countStyle);
+
+            string summary = !selected.HasRunData
+                ? "BUILD DATA UNAVAILABLE"
+                : selected.Rings.Count == 0 ? "NO RINGS RECORDED"
+                    : selected.Rings.Count + " DISTINCT RARITY ENTRIES";
+            GUI.Label(new Rect(x + 18f, y + 80f, BuildWindowWidth - 36f, 23f),
+                summary, _buildDetailStyle);
+            Fill(new Rect(x + 12f, y + 108f, BuildWindowWidth - 24f, 1f),
+                PanelDivider);
+
+            if (selected.HasRunData)
+            {
+                int start = _buildPage * BuildRingsPerPage;
+                int end = Math.Min(start + BuildRingsPerPage, selected.Rings.Count);
+                for (int i = start; i < end; i++)
+                {
+                    var ring = selected.Rings[i];
+                    float rowY = y + 112f + (i - start) * BuildRingRowHeight;
+                    if ((i - start) % 2 == 1)
+                        Fill(new Rect(x + 11f, rowY, BuildWindowWidth - 22f,
+                            BuildRingRowHeight),
+                            new Color(0.30f, 0.33f, 0.39f, 0.14f));
+
+                    Color rarityColor = GetRingRarityColor(ring.Rarity);
+                    Fill(new Rect(x + 15f, rowY + 7f, 3f, 30f), rarityColor);
+                    Fill(new Rect(x + 23f, rowY + 5f, 33f, 33f),
+                        SlotBackground);
+                    if (!DrawClassIcon(ring.Icon,
+                        new Rect(x + 26f, rowY + 8f, 27f, 27f)))
+                        Fill(new Rect(x + 31f, rowY + 13f, 17f, 17f),
+                            rarityColor);
+
+                    GUI.Label(new Rect(x + 64f, rowY + 2f,
+                        BuildWindowWidth - 135f, 23f),
+                        FitText(ring.Name, _buildNameStyle,
+                            BuildWindowWidth - 135f), _buildNameStyle);
+                    _buildDetailStyle.normal.textColor = rarityColor;
+                    GUI.Label(new Rect(x + 64f, rowY + 23f,
+                        BuildWindowWidth - 140f, 17f),
+                        ring.Rarity.ToString(), _buildDetailStyle);
+                    GUI.Label(new Rect(x + BuildWindowWidth - 63f, rowY + 8f,
+                        48f, 25f), "x" + ring.Picks, _healthStyle);
+                }
+            }
+
+            Fill(new Rect(x + 12f, y + BuildWindowHeight - 32f,
+                BuildWindowWidth - 24f, 1f), PanelDivider);
+            _buildHelpStyle.normal.textColor = new Color(0.92f, 0.83f, 0.70f);
+            GUI.Label(new Rect(x + 15f, y + BuildWindowHeight - 28f,
+                BuildWindowWidth - 29f, 18f),
+                "F8 CLOSE   F9 PLAYER   PgUp/PgDn PAGE " +
+                (_buildPage + 1) + "/" + totalPages, _buildHelpStyle);
+        }
+
+        private static Color GetRingRarityColor(Rarity rarity)
+        {
+            switch (rarity)
+            {
+                case Rarity.UNCOMMON: return new Color(0.44f, 0.84f, 0.54f);
+                case Rarity.RARE: return new Color(0.46f, 0.73f, 0.99f);
+                case Rarity.EPIC: return new Color(0.76f, 0.53f, 0.96f);
+                case Rarity.LEGENDARY: return new Color(1f, 0.77f, 0.37f);
+                default: return new Color(0.85f, 0.84f, 0.82f);
+            }
         }
 
         private static void DrawStonewardsWindow(float x, float y, float width, float height)
@@ -1357,6 +1472,12 @@ namespace StonewardsPartyHUD
                 _wallStatusStyle = MakeStyle(12, new Color(0.98f, 0.79f, 0.51f),
                     TextAnchor.MiddleLeft, true);
                 _pingStyle = MakeStyle(12, Color.white, TextAnchor.MiddleLeft, true);
+                _buildNameStyle = MakeStyle(16, Color.white,
+                    TextAnchor.MiddleLeft, true);
+                _buildDetailStyle = MakeStyle(12,
+                    new Color(0.88f, 0.84f, 0.77f), TextAnchor.MiddleLeft, true);
+                _buildHelpStyle = MakeStyle(11,
+                    new Color(0.93f, 0.84f, 0.69f), TextAnchor.MiddleLeft, true);
             }
             TryApplyNativeFont();
         }
@@ -1385,7 +1506,8 @@ namespace StonewardsPartyHUD
             {
                 _headingStyle, _countStyle, _nameStyle, _classStyle,
                 _badgeStyle, _healthStyle, _statusStyle, _companionStyle,
-                _alertStyle, _wallStatusStyle, _pingStyle
+                _alertStyle, _wallStatusStyle, _pingStyle,
+                _buildNameStyle, _buildDetailStyle, _buildHelpStyle
             };
             foreach (var style in styles)
             {
@@ -1403,6 +1525,9 @@ namespace StonewardsPartyHUD
             _alertStyle.fontSize = 15;
             _wallStatusStyle.fontSize = 16;
             _pingStyle.fontSize = 13;
+            _buildNameStyle.fontSize = 19;
+            _buildDetailStyle.fontSize = 15;
+            _buildHelpStyle.fontSize = 12;
             Logger.LogInfo("Party HUD is using Stonewards UI font: " + _nativeUiFont.name);
         }
 
