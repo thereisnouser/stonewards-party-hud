@@ -13,7 +13,8 @@ A lightweight, **client-side** party HUD for **Stonewards**, styled to fit the g
 - **Party status:** player names, class icons, current/max HP and downed state.
 - **Teammate tracking:** optional outlines and floating nicknames, including through walls.
 - **Extra health bars:** Hunter's bear companion and defensive wall health.
-- **Fits your screen:** automatic scaling and configurable panel position.
+- **Host ping:** the host can see measured connection latency for teammates (in ms).
+- **Fits your screen:** resolution-proportional scaling and configurable panel position.
 
 **Client-side only:** teammates do not need to install the mod.
 
