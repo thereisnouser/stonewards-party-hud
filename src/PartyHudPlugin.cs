@@ -25,9 +25,11 @@ namespace StonewardsPartyHUD
         private const float BottomHudSafeZone = 132f;
         private const float NativeRosterHeaderSafeZone = 130f;
         private const float NativeRosterPlayerRowSafeZone = 42f;
-        // Keep the pixel UI physically larger while narrowing the panel.
-        // Existing appearance configuration and viewport fitting still apply.
-        private const float PanelSizeBoost = 1.25f;
+        // Match the approved compact on-screen proportions (~296px wide
+        // at 1920x1080 with the default Scale and ReadabilityScale).
+        // Keep fixed-size layout across resolutions; shrink only to fit.
+        // Existing custom Scale / ReadabilityScale settings still apply.
+        private const float PanelSizeBoost = 0.95f;
 
         // Native Stonewards UI colors sampled from Shop and Character Selection.
         private static readonly Color PanelFrame = new Color(0.72f, 0.64f, 0.48f);
