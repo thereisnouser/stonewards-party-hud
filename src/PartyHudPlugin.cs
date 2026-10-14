@@ -927,8 +927,8 @@ namespace StonewardsPartyHUD
         private void DrawPanel(float x, float y, float height)
         {
             DrawStonewardsWindow(x, y, PanelWidth, height);
-            // A separate caption row prevents DOWN and party count from
-            // overlapping the centered title on the narrower panel.
+            // Keep the title and party counter vertically centered on the
+            // same header line; DOWN stays in the secondary row when needed.
             GUI.Label(new Rect(x + 20f, y + 2f, PanelWidth - 40f, 29f),
                 "PARTY STATUS", _headingStyle);
 
@@ -940,7 +940,7 @@ namespace StonewardsPartyHUD
             if (downed > 0)
                 GUI.Label(new Rect(x + 14f, y + 28f, 116f, 18f),
                     downed + " DOWN", _alertStyle);
-            GUI.Label(new Rect(x + PanelWidth - 80f, y + 28f, 66f, 18f),
+            GUI.Label(new Rect(x + PanelWidth - 80f, y + 2f, 66f, 29f),
                 _players.Count + " / 4", _countStyle);
 
             float rowY = y + HeaderHeight;
