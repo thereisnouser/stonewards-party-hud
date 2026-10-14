@@ -25,6 +25,27 @@ if ($meta.version_number -notmatch '^\d+\.\d+\.\d+$') {
     throw 'Thunderstore version_number must use X.Y.Z.'
 }
 
+# Reject mismatched manifests, stale builds and previous-release DLLs.
+$source = Join-Path $repo 'src\PartyHudPlugin.cs'
+$sourceText = Get-Content -LiteralPath $source -Raw
+if ($sourceText -notmatch 'PluginVersion\s*=\s*"(\d+\.\d+\.\d+)"') {
+    throw 'PluginVersion is missing from the Party HUD source.'
+}
+$sourceVersion = $Matches[1]
+if ($sourceVersion -ne $meta.version_number) {
+    throw "Source version $sourceVersion does not match Thunderstore manifest $($meta.version_number)."
+}
+$builtDll = Get-Item -LiteralPath $PluginDll
+if ($builtDll.LastWriteTimeUtc -lt (Get-Item -LiteralPath $source).LastWriteTimeUtc) {
+    throw "The compiled DLL is older than the current source. Rebuild before packaging: $PluginDll"
+}
+# The public PluginVersion constant is embedded in .NET metadata as ASCII.
+$dllMetadata = [System.Text.Encoding]::ASCII.GetString(
+    [System.IO.File]::ReadAllBytes($PluginDll))
+if (-not $dllMetadata.Contains($sourceVersion)) {
+    throw "Compiled DLL does not contain plugin version $sourceVersion. Rebuild before packaging."
+}
+
 # The Thunderstore icon must be a 256x256 PNG.
 $image = $null
 try {
@@ -93,4 +114,6 @@ finally {
 }
 
 Write-Host "Package created: $zip" -ForegroundColor Green
+Write-Host "Plugin/manifest version: $sourceVersion"
+Write-Host "Compiled DLL SHA256: $((Get-FileHash -LiteralPath $PluginDll -Algorithm SHA256).Hash)"
 Write-Host 'Not published. Test the package in a fresh mod manager profile before release.'
