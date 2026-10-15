@@ -16,7 +16,7 @@ A lightweight, **client-side** party HUD for **Stonewards**, styled to fit the g
 - **Host ping:** the host can see measured connection latency for teammates (in ms).
 - **Host ring inspector:** inspect teammates' selected rings, rarities and pick counts. The default shortcuts are **F8** (open/close), **F9** (next player), **PageUp** (previous page) and **PageDown** (next page).
 - **In-game settings:** press **F7** to open the built-in Stonewards-style settings menu. Configure visible HUD features, scaling, position, and all five hotkeys without installing another mod.
-- **Discoverable HUD actions:** the **PARTY STATUS** header shows two compact actions directly beneath the title and player count: **SETTINGS** and **BUILDS**, each labeled with its currently assigned shortcut (F7 / F8 by default). BUILDS is host-only and displays **HOST ONLY** on clients or **DISABLED** when turned off. The hints remain visible without unlocking the cursor; when a cursor is already free, the buttons can also be clicked.
+- **Discoverable HUD actions:** the **PARTY STATUS** header shows two compact Stonewards-inspired slate buttons with stepped gold borders and light text: **SETTINGS** and **BUILDS**. Their labels include current shortcuts (F7 / F8 by default), and buttons highlight on hover if the cursor is already unlocked. BUILDS is host-only and displays **HOST ONLY** on clients or **DISABLED** when turned off. During locked-cursor gameplay they serve as always-visible hotkey hints.
 - **Custom hotkeys:** click a binding under **HOTKEYS** and press a new key or Ctrl/Shift/Alt combination; changes are saved automatically.
 - **Fits your screen:** resolution-proportional scaling and configurable panel position.
 
