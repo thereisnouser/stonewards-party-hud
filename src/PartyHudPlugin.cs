@@ -72,6 +72,9 @@ namespace StonewardsPartyHUD
         private string _settingsNotice = "";
         private CursorLockMode _previousCursorLock;
         private bool _previousCursorVisible;
+        private InputManager.InputState _inputStateBeforeSettings;
+        private bool _ownsSettingsInput;
+        private bool _settingsInputRestorePending;
         // InventoryScreen does not inherit BaseMenu. Its UI Toolkit root
         // switches between DisplayStyle.Flex and None on opening/closing.
         private static readonly FieldInfo InventoryRootField =
@@ -267,6 +270,8 @@ namespace StonewardsPartyHUD
             bool gameMenuOpen = IsBlockingGameMenuOpen();
             if (_settingsOpen && gameMenuOpen)
                 CloseSettings(false);
+            if (_settingsInputRestorePending)
+                RestoreSettingsInputWhenSafe(gameMenuOpen);
             if (!gameMenuOpen && _capturingShortcut < 0 &&
                 _toggleSettingsShortcut.Value.IsDown())
             {
@@ -351,11 +356,26 @@ namespace StonewardsPartyHUD
 
         private void OpenSettings()
         {
+            var input = InputManager.Instance;
+            if (input == null || GameManager.Instance == null)
+                return;
+
+            // A free cursor alone does not stop attacks or movement. Switch to
+            // the same input state Stonewards uses for its full-screen menus.
+            var state = input.CurrentInputState;
+            if (state != InputManager.InputState.Gameplay &&
+                state != InputManager.InputState.Dead)
+                return;
+
+            _inputStateBeforeSettings = state;
+            _settingsInputRestorePending = false;
             _previousCursorLock = Cursor.lockState;
             _previousCursorVisible = Cursor.visible;
             _settingsOpen = true;
+            _ownsSettingsInput = true;
             _capturingShortcut = -1;
             _settingsNotice = "";
+            input.SetState(InputManager.InputState.GeneralMenu);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
         }
@@ -366,12 +386,60 @@ namespace StonewardsPartyHUD
                 return;
             _settingsOpen = false;
             _capturingShortcut = -1;
+
+            var input = InputManager.Instance;
+            if (_ownsSettingsInput && input != null &&
+                input.CurrentInputState == InputManager.InputState.GeneralMenu)
+            {
+                if (restoreCursor && !IsBlockingGameMenuOpen())
+                    input.SetState(SettingsReturnState());
+                else
+                    // A native menu can inherit GeneralMenu and restore it
+                    // after closing. Repair that state only when it is gone.
+                    _settingsInputRestorePending = true;
+            }
+            _ownsSettingsInput = false;
+
             // Let Stonewards manage the cursor when it opens its own menu.
             if (restoreCursor)
             {
                 Cursor.lockState = _previousCursorLock;
                 Cursor.visible = _previousCursorVisible;
             }
+        }
+
+        private InputManager.InputState SettingsReturnState()
+        {
+            // The player might have died or revived while settings were open.
+            var players = FirstPersonController.LocalPlayers;
+            if (players != null)
+            {
+                foreach (var player in players)
+                    if (player != null && player.isLocalPlayer &&
+                        player.PlayerStats != null)
+                        return player.PlayerStats.isDead
+                            ? InputManager.InputState.Dead
+                            : InputManager.InputState.Gameplay;
+            }
+            return _inputStateBeforeSettings;
+        }
+
+        private void RestoreSettingsInputWhenSafe(bool gameMenuOpen)
+        {
+            var input = InputManager.Instance;
+            if (input == null || GameManager.Instance == null ||
+                input.CurrentInputState != InputManager.InputState.GeneralMenu)
+            {
+                _settingsInputRestorePending = false;
+                return;
+            }
+            if (gameMenuOpen)
+                return;
+
+            // Only restore the input state that our menu may have left behind.
+            // Do not override an inventory/upgrade/loading screen's own state.
+            input.SetState(SettingsReturnState());
+            _settingsInputRestorePending = false;
         }
 
         private void CloseBuildInspector()
