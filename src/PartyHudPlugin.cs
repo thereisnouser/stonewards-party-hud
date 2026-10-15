@@ -265,7 +265,7 @@ namespace StonewardsPartyHUD
         {
             bool gameMenuOpen = IsBlockingGameMenuOpen();
             if (_settingsOpen && gameMenuOpen)
-                CloseSettings();
+                CloseSettings(false);
             if (!gameMenuOpen && _capturingShortcut < 0 &&
                 _toggleSettingsShortcut.Value.IsDown())
             {
@@ -359,14 +359,18 @@ namespace StonewardsPartyHUD
             Cursor.visible = true;
         }
 
-        private void CloseSettings()
+        private void CloseSettings(bool restoreCursor = true)
         {
             if (!_settingsOpen)
                 return;
             _settingsOpen = false;
             _capturingShortcut = -1;
-            Cursor.lockState = _previousCursorLock;
-            Cursor.visible = _previousCursorVisible;
+            // Let Stonewards manage the cursor when it opens its own menu.
+            if (restoreCursor)
+            {
+                Cursor.lockState = _previousCursorLock;
+                Cursor.visible = _previousCursorVisible;
+            }
         }
 
         private void CloseBuildInspector()
@@ -1419,11 +1423,11 @@ namespace StonewardsPartyHUD
 
                 Fill(new Rect(x + 14f, y + SettingsHeight - 39f,
                     SettingsWidth - 28f, 1f), PanelDivider);
-                string footer = _capturingShortcut >= 0
-                    ? "PRESS A KEY + MODIFIERS. ESC TO CANCEL."
-                    : string.IsNullOrEmpty(_settingsNotice)
-                        ? "CHANGES ARE SAVED TO YOUR BEPINEX CONFIG."
-                        : _settingsNotice;
+                string footer = !string.IsNullOrEmpty(_settingsNotice)
+                    ? _settingsNotice
+                    : _capturingShortcut >= 0
+                        ? "PRESS A KEY + MODIFIERS. ESC TO CANCEL."
+                        : "CHANGES ARE SAVED TO YOUR BEPINEX CONFIG.";
                 GUI.Label(new Rect(x + 20f, y + SettingsHeight - 32f,
                     SettingsWidth - 40f, 24f),
                     FitText(footer, _buildHelpStyle, SettingsWidth - 40f),
