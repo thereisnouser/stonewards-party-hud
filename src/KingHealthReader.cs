@@ -13,7 +13,7 @@ namespace StonewardsPartyHUD
     {
         private static readonly BindingFlags MemberFlags =
             BindingFlags.Instance | BindingFlags.Public |
-            BindingFlags.NonPublic | BindingFlags.IgnoreCase;
+            BindingFlags.NonPublic;
 
         private static readonly string[] CurrentNames =
         {
@@ -25,7 +25,7 @@ namespace StonewardsPartyHUD
         {
             "NetworkcurrentMaxHealth", "CurrentMaxHealth",
             "GetCurrentMaxHealth", "MaxHealth", "maxHealth",
-            "GetMaxHealth", "MaximumHealth", "maxHP"
+            "GetMaxHealth", "MaximumHealth", "maxHP", "MaxHP"
         };
 
         private MonoBehaviour _source;
@@ -81,14 +81,13 @@ namespace StonewardsPartyHUD
                     !IsKingRelated(component))
                     continue;
 
-                Type type = component.GetType();
-                MemberInfo health = FindNumberMember(type, CurrentNames);
-                MemberInfo max = FindNumberMember(type, MaximumNames);
-                if (health == null || max == null)
-                    continue;
-
                 try
                 {
+                    Type type = component.GetType();
+                    MemberInfo health = FindNumberMember(type, CurrentNames);
+                    MemberInfo max = FindNumberMember(type, MaximumNames);
+                    if (health == null || max == null)
+                        continue;
                     float current, maximum;
                     if (!TryReadNumber(component, health, out current) ||
                         !TryReadNumber(component, max, out maximum) ||
@@ -133,20 +132,28 @@ namespace StonewardsPartyHUD
 
         private static MemberInfo FindNumberMember(Type type, string[] names)
         {
+            // Traverse base types to include private fields declared on
+            // inherited health components. Exact-case lookup avoids ambiguous
+            // matches between similarly named generated Mirror accessors.
             foreach (string name in names)
             {
-                PropertyInfo property = type.GetProperty(name, MemberFlags);
-                if (property != null && property.GetIndexParameters().Length == 0)
-                    return property;
+                for (Type current = type; current != null;
+                     current = current.BaseType)
+                {
+                    var flags = MemberFlags | BindingFlags.DeclaredOnly;
+                    PropertyInfo property = current.GetProperty(name, flags);
+                    if (property != null && property.GetIndexParameters().Length == 0)
+                        return property;
 
-                FieldInfo field = type.GetField(name, MemberFlags);
-                if (field != null)
-                    return field;
+                    FieldInfo field = current.GetField(name, flags);
+                    if (field != null)
+                        return field;
 
-                MethodInfo method = type.GetMethod(name, MemberFlags, null,
-                    Type.EmptyTypes, null);
-                if (method != null && method.ReturnType != typeof(void))
-                    return method;
+                    MethodInfo method = current.GetMethod(name, flags, null,
+                        Type.EmptyTypes, null);
+                    if (method != null && method.ReturnType != typeof(void))
+                        return method;
+                }
             }
             return null;
         }
