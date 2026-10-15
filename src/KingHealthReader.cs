@@ -33,6 +33,16 @@ namespace StonewardsPartyHUD
         private MemberInfo _maximumMember;
         private float _nextLookup;
 
+        public string SourceDescription
+        {
+            get
+            {
+                return _source == null ? "unavailable"
+                    : _source.GetType().Name + "." + _currentMember.Name + " / " +
+                      _maximumMember.Name;
+            }
+        }
+
         public bool TryRead(out float current, out float maximum)
         {
             current = 0f;
