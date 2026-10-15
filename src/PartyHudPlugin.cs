@@ -1356,6 +1356,302 @@ namespace StonewardsPartyHUD
                 DrawWallHealth(x, rowY);
         }
 
+        private void DrawSettingsWindow()
+        {
+            float preferred = Mathf.Clamp(Mathf.Min(
+                Screen.width / ReferenceScreenWidth,
+                Screen.height / ReferenceScreenHeight), 0.8f, 1.5f);
+            float scale = Mathf.Min(preferred,
+                (Screen.width - 16f) / SettingsWidth,
+                (Screen.height - 16f) / SettingsHeight);
+            if (scale <= 0f)
+                return;
+
+            float sw = Screen.width / scale;
+            float sh = Screen.height / scale;
+            float x = (sw - SettingsWidth) * 0.5f;
+            float y = (sh - SettingsHeight) * 0.5f;
+            Matrix4x4 matrix = GUI.matrix;
+            Color color = GUI.color;
+            int depth = GUI.depth;
+
+            try
+            {
+                // Make this a foreground interactive overlay without changing
+                // the passive party HUD's existing repaint-only behavior.
+                GUI.depth = -100;
+                GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
+                Fill(new Rect(0f, 0f, sw, sh),
+                    new Color(0.015f, 0.02f, 0.03f, 0.68f));
+
+                if (_capturingShortcut >= 0 &&
+                    Event.current.type == EventType.KeyDown)
+                    CaptureSettingsShortcut(Event.current);
+
+                DrawStonewardsWindow(x, y, SettingsWidth, SettingsHeight);
+                GUI.Label(new Rect(x + 62f, y + 4f, SettingsWidth - 124f, 33f),
+                    "PARTY HUD SETTINGS", _headingStyle);
+                if (SettingsButton(new Rect(x + SettingsWidth - 43f, y + 10f,
+                    29f, 26f), "X"))
+                {
+                    CloseSettings();
+                    return;
+                }
+
+                const float gap = 8f;
+                const float tabWidth = (SettingsWidth - 32f - 2f * gap) / 3f;
+                string[] tabs = { "DISPLAY", "LAYOUT", "HOTKEYS" };
+                for (int i = 0; i < tabs.Length; i++)
+                    if (SettingsButton(new Rect(x + 16f + i * (tabWidth + gap),
+                        y + 58f, tabWidth, 34f), tabs[i], _settingsTab == i))
+                    {
+                        _settingsTab = i;
+                        _settingsNotice = "";
+                        _capturingShortcut = -1;
+                    }
+
+                switch (_settingsTab)
+                {
+                    case 0: DrawDisplaySettings(x, y); break;
+                    case 1: DrawLayoutSettings(x, y); break;
+                    default: DrawHotkeySettings(x, y); break;
+                }
+
+                Fill(new Rect(x + 14f, y + SettingsHeight - 39f,
+                    SettingsWidth - 28f, 1f), PanelDivider);
+                string footer = _capturingShortcut >= 0
+                    ? "PRESS A KEY + MODIFIERS. ESC TO CANCEL."
+                    : string.IsNullOrEmpty(_settingsNotice)
+                        ? "CHANGES ARE SAVED TO YOUR BEPINEX CONFIG."
+                        : _settingsNotice;
+                GUI.Label(new Rect(x + 20f, y + SettingsHeight - 32f,
+                    SettingsWidth - 40f, 24f),
+                    FitText(footer, _buildHelpStyle, SettingsWidth - 40f),
+                    _buildHelpStyle);
+            }
+            finally
+            {
+                GUI.matrix = matrix;
+                GUI.color = color;
+                GUI.depth = depth;
+            }
+        }
+
+        private bool SettingsButton(Rect area, string text, bool active = false)
+        {
+            Fill(area, active ? PanelHeader : SlotBackground);
+            Fill(new Rect(area.x, area.y, area.width, 1f), PanelFrame);
+            Fill(new Rect(area.x, area.y + area.height - 1f,
+                area.width, 1f), PanelFrame);
+            return GUI.Button(area, text, _settingsButtonStyle);
+        }
+
+        private void SettingsToggle(float x, float rowY, string title,
+            ConfigEntry<bool> option)
+        {
+            GUI.Label(new Rect(x + 23f, rowY, 330f, 31f),
+                title, _buildNameStyle);
+            bool enabled = option.Value;
+            if (SettingsButton(new Rect(x + SettingsWidth - 105f, rowY,
+                82f, 30f), enabled ? "ON" : "OFF", enabled))
+            {
+                option.Value = !enabled;
+                Config.Save();
+                _settingsNotice = title.ToUpperInvariant() + " SAVED";
+            }
+            Fill(new Rect(x + 19f, rowY + 34f,
+                SettingsWidth - 38f, 1f), PanelDivider);
+        }
+
+        private void DrawDisplaySettings(float x, float y)
+        {
+            GUI.Label(new Rect(x + 23f, y + 104f,
+                SettingsWidth - 46f, 27f),
+                "SHOW OR HIDE HUD FEATURES", _buildDetailStyle);
+            SettingsToggle(x, y + 139f, "Party HUD", _enabled);
+            SettingsToggle(x, y + 176f, "Teammate outlines", _showTeammateOutlines);
+            SettingsToggle(x, y + 213f, "Teammate nicknames", _showPlayerNames);
+            SettingsToggle(x, y + 250f, "Outlines through walls", _outlinesThroughWalls);
+            SettingsToggle(x, y + 287f, "Host ping", _showHostPing);
+            SettingsToggle(x, y + 324f, "Hunter companion health", _showCompanionHealth);
+            SettingsToggle(x, y + 361f, "Wall health", _showWallHealth);
+            SettingsToggle(x, y + 398f, "Host build inspector", _enableBuildInspector);
+        }
+
+        private void SettingsSlider(float x, float rowY, string title,
+            float value, float min, float max, Action<float> setValue,
+            string displayedValue)
+        {
+            GUI.Label(new Rect(x + 23f, rowY, 278f, 27f),
+                title, _buildNameStyle);
+            GUI.Label(new Rect(x + 370f, rowY, 100f, 27f),
+                displayedValue, _healthStyle);
+            float chosen = GUI.HorizontalSlider(
+                new Rect(x + 28f, rowY + 29f, SettingsWidth - 56f, 20f),
+                Mathf.Clamp(value, min, max), min, max);
+            if (Mathf.Abs(chosen - value) > 0.001f)
+            {
+                setValue(chosen);
+                _settingsNotice = title.ToUpperInvariant() + " SAVED";
+            }
+        }
+
+        private void DrawLayoutSettings(float x, float y)
+        {
+            GUI.Label(new Rect(x + 23f, y + 104f,
+                SettingsWidth - 46f, 25f),
+                "CHANGES APPLY IMMEDIATELY", _buildDetailStyle);
+            SettingsSlider(x, y + 139f, "HUD size",
+                _scale.Value, 0.65f, 1.8f,
+                value => _scale.Value = (float)Math.Round(value, 2),
+                Mathf.RoundToInt(_scale.Value * 100f) + "%");
+            SettingsSlider(x, y + 213f, "Horizontal offset",
+                _leftOffset.Value, 8f, 460f,
+                value => _leftOffset.Value = Mathf.RoundToInt(value),
+                _leftOffset.Value + " px");
+            ConfigEntry<int> verticalOffset = _anchor.Value == PanelAnchor.TopLeft
+                ? _topOffset : _bottomOffset;
+            SettingsSlider(x, y + 287f, "Vertical offset",
+                verticalOffset.Value, 8f, 460f,
+                value => verticalOffset.Value = Mathf.RoundToInt(value),
+                verticalOffset.Value + " px");
+            GUI.Label(new Rect(x + 23f, y + 362f, 165f, 27f),
+                "Panel anchor", _buildNameStyle);
+            if (SettingsButton(new Rect(x + 217f, y + 360f, 118f, 31f),
+                "TOP LEFT", _anchor.Value == PanelAnchor.TopLeft))
+            {
+                _anchor.Value = PanelAnchor.TopLeft;
+                Config.Save();
+            }
+            if (SettingsButton(new Rect(x + 345f, y + 360f, 128f, 31f),
+                "BOTTOM LEFT", _anchor.Value == PanelAnchor.BottomLeft))
+            {
+                _anchor.Value = PanelAnchor.BottomLeft;
+                Config.Save();
+            }
+            SettingsToggle(x, y + 406f, "Scale with resolution",
+                _autoScaleToResolution);
+            SettingsToggle(x, y + 448f, "Avoid native player roster",
+                _avoidNativeRoster);
+        }
+
+        private void DrawHotkeySettings(float x, float y)
+        {
+            GUI.Label(new Rect(x + 23f, y + 103f, SettingsWidth - 46f, 29f),
+                "CLICK A BINDING, THEN PRESS THE NEW KEY", _buildDetailStyle);
+            string[] names =
+            {
+                "Open settings", "Open builds", "Next player",
+                "Next ring page", "Previous ring page"
+            };
+            for (int i = 0; i < names.Length; i++)
+            {
+                float rowY = y + 145f + 53f * i;
+                var option = SettingsShortcutEntry(i);
+                string shown = _capturingShortcut == i
+                    ? "PRESS KEY..."
+                    : ShortcutLabel(option.Value);
+                GUI.Label(new Rect(x + 23f, rowY + 2f, 195f, 30f),
+                    names[i], _buildNameStyle);
+                if (SettingsButton(new Rect(x + 220f, rowY, 255f, 33f),
+                    FitText(shown, _settingsButtonStyle, 241f),
+                    _capturingShortcut == i))
+                {
+                    _capturingShortcut = i;
+                    _settingsNotice = "";
+                }
+            }
+            GUI.Label(new Rect(x + 23f, y + 420f, SettingsWidth - 46f, 27f),
+                "CTRL, SHIFT AND ALT COMBINATIONS ARE SUPPORTED.",
+                _buildDetailStyle);
+            if (SettingsButton(new Rect(x + 20f, y + 460f,
+                SettingsWidth - 40f, 32f), "RESTORE DEFAULT HOTKEYS"))
+                ResetSettingsShortcuts();
+        }
+
+        private ConfigEntry<KeyboardShortcut> SettingsShortcutEntry(int index)
+        {
+            switch (index)
+            {
+                case 0: return _toggleSettingsShortcut;
+                case 1: return _toggleBuildInspectorShortcut;
+                case 2: return _nextBuildPlayerShortcut;
+                case 3: return _nextBuildPageShortcut;
+                case 4: return _previousBuildPageShortcut;
+                default: throw new ArgumentOutOfRangeException("index");
+            }
+        }
+
+        private static bool ModifierKey(KeyCode key)
+        {
+            return key == KeyCode.LeftControl || key == KeyCode.RightControl ||
+                key == KeyCode.LeftShift || key == KeyCode.RightShift ||
+                key == KeyCode.LeftAlt || key == KeyCode.RightAlt;
+        }
+
+        private static void AddHeldModifier(List<KeyCode> modifiers,
+            KeyCode left, KeyCode right, EventModifiers flag, Event e)
+        {
+            if (Input.GetKey(left))
+                modifiers.Add(left);
+            else if (Input.GetKey(right))
+                modifiers.Add(right);
+            else if ((e.modifiers & flag) != 0)
+                modifiers.Add(left);
+        }
+
+        private void CaptureSettingsShortcut(Event e)
+        {
+            if (e.keyCode == KeyCode.None)
+                return;
+            if (e.keyCode == KeyCode.Escape)
+            {
+                _capturingShortcut = -1;
+                _settingsNotice = "KEY CAPTURE CANCELLED";
+                e.Use();
+                return;
+            }
+            if (ModifierKey(e.keyCode))
+                return;
+
+            var held = new List<KeyCode>(3);
+            AddHeldModifier(held, KeyCode.LeftControl, KeyCode.RightControl,
+                EventModifiers.Control, e);
+            AddHeldModifier(held, KeyCode.LeftShift, KeyCode.RightShift,
+                EventModifiers.Shift, e);
+            AddHeldModifier(held, KeyCode.LeftAlt, KeyCode.RightAlt,
+                EventModifiers.Alt, e);
+            var shortcut = new KeyboardShortcut(e.keyCode, held.ToArray());
+            for (int i = 0; i < 5; i++)
+            {
+                if (i != _capturingShortcut &&
+                    SettingsShortcutEntry(i).Value.Equals(shortcut))
+                {
+                    _settingsNotice = "KEY ALREADY USED. CHOOSE ANOTHER.";
+                    e.Use();
+                    return;
+                }
+            }
+
+            SettingsShortcutEntry(_capturingShortcut).Value = shortcut;
+            Config.Save();
+            _settingsNotice = "HOTKEY SAVED: " + ShortcutLabel(shortcut);
+            _capturingShortcut = -1;
+            e.Use();
+        }
+
+        private void ResetSettingsShortcuts()
+        {
+            _toggleSettingsShortcut.Value = new KeyboardShortcut(KeyCode.F7);
+            _toggleBuildInspectorShortcut.Value = new KeyboardShortcut(KeyCode.F8);
+            _nextBuildPlayerShortcut.Value = new KeyboardShortcut(KeyCode.F9);
+            _nextBuildPageShortcut.Value = new KeyboardShortcut(KeyCode.PageDown);
+            _previousBuildPageShortcut.Value = new KeyboardShortcut(KeyCode.PageUp);
+            Config.Save();
+            _capturingShortcut = -1;
+            _settingsNotice = "DEFAULT HOTKEYS RESTORED";
+        }
+
         private void DrawBuildInspector(float x, float y)
         {
             DrawStonewardsWindow(x, y, BuildWindowWidth, BuildWindowHeight);
