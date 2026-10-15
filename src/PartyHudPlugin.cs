@@ -143,6 +143,7 @@ namespace StonewardsPartyHUD
         private bool _hasKing;
         private float _kingHealth;
         private float _kingMaxHealth;
+        private bool _kingSourceReported;
         private float _nextWarning;
         private float _nextPingDiagnostic;
         private float _nextOutlineShaderRetry;
@@ -811,6 +812,11 @@ namespace StonewardsPartyHUD
             try
             {
                 _hasKing = _kingReader.TryRead(out _kingHealth, out _kingMaxHealth);
+                if (_hasKing && !_kingSourceReported)
+                {
+                    Logger.LogInfo("King HP source: " + _kingReader.SourceDescription);
+                    _kingSourceReported = true;
+                }
             }
             catch (Exception ex)
             {
