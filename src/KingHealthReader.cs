@@ -132,12 +132,34 @@ namespace StonewardsPartyHUD
 
         private static bool HasKingToken(string name)
         {
-            // Avoid accepting "Viking" characters as the King's health.
-            if (string.IsNullOrEmpty(name) ||
-                name.IndexOf("Viking", StringComparison.OrdinalIgnoreCase) >= 0)
+            if (string.IsNullOrEmpty(name))
                 return false;
 
-            return name.IndexOf("King", StringComparison.OrdinalIgnoreCase) >= 0;
+            // Match King, KingStats, TheKing and "King (Clone)", but not
+            // Walking, Tracking, Looking, Viking or Kingdom. Those contain
+            // the same four letters but do not identify the monarch.
+            int start = 0;
+            while (start < name.Length)
+            {
+                int index = name.IndexOf("king", start,
+                    StringComparison.OrdinalIgnoreCase);
+                if (index < 0)
+                    return false;
+
+                int end = index + 4;
+                bool beginning = index == 0 ||
+                    !char.IsLetter(name[index - 1]) ||
+                    (char.IsUpper(name[index]) &&
+                     char.IsLower(name[index - 1]));
+                bool ending = end == name.Length ||
+                    !char.IsLetter(name[end]) ||
+                    char.IsUpper(name[end]);
+                if (beginning && ending)
+                    return true;
+
+                start = end;
+            }
+            return false;
         }
 
         private static MemberInfo FindNumberMember(Type type, string[] names)
