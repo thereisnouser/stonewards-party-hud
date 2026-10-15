@@ -13,7 +13,7 @@ namespace StonewardsPartyHUD
     {
         public const string PluginGuid = "community.stonewards.partyhud";
         public const string PluginName = "Stonewards Party HUD";
-        public const string PluginVersion = "0.3.1";
+        public const string PluginVersion = "0.3.2";
 
         private const float RefreshSeconds = 0.2f;
         private const float PanelWidth = 278f;
@@ -103,6 +103,10 @@ namespace StonewardsPartyHUD
         private ConfigEntry<bool> _showWallHealth;
         private ConfigEntry<bool> _showHostPing;
         private ConfigEntry<bool> _enableBuildInspector;
+        private ConfigEntry<KeyboardShortcut> _toggleBuildInspectorShortcut;
+        private ConfigEntry<KeyboardShortcut> _nextBuildPlayerShortcut;
+        private ConfigEntry<KeyboardShortcut> _nextBuildPageShortcut;
+        private ConfigEntry<KeyboardShortcut> _previousBuildPageShortcut;
         private ConfigEntry<bool> _showTeammateOutlines;
         private ConfigEntry<bool> _showPlayerNames;
         private ConfigEntry<float> _playerNameVerticalOffset;
@@ -208,7 +212,19 @@ namespace StonewardsPartyHUD
             _showHostPing = Config.Bind("Appearance", "ShowHostPing", true,
                 "On the hosting player's screen, show each remote player's real Mirror connection RTT in ms. Other clients never display unverified peer ping.");
             _enableBuildInspector = Config.Bind("BuildInspector", "Enabled", true,
-                "Host-only teammate ring inspector: F8 to open/close, F9 to switch players, PageDown/PageUp to browse rings. No teammate mod needed.");
+                "Allow the hosting player to inspect teammates' rings. Other players do not need the mod.");
+            _toggleBuildInspectorShortcut = Config.Bind("Hotkeys", "ToggleBuildInspector",
+                new KeyboardShortcut(KeyCode.F8),
+                "Open or close the host-only build inspector. Supports key combinations with Ctrl, Shift and Alt.");
+            _nextBuildPlayerShortcut = Config.Bind("Hotkeys", "NextBuildPlayer",
+                new KeyboardShortcut(KeyCode.F9),
+                "Select the next teammate in the build inspector.");
+            _nextBuildPageShortcut = Config.Bind("Hotkeys", "NextBuildPage",
+                new KeyboardShortcut(KeyCode.PageDown),
+                "Show the next page of rings in the build inspector.");
+            _previousBuildPageShortcut = Config.Bind("Hotkeys", "PreviousBuildPage",
+                new KeyboardShortcut(KeyCode.PageUp),
+                "Show the previous page of rings in the build inspector.");
             _showTeammateOutlines = Config.Bind("TeammateOutlines", "Enabled", true,
                 "Outline remote teammates in the world (never the local player).");
             _showPlayerNames = Config.Bind("TeammateOutlines", "ShowPlayerNames", true,
@@ -249,23 +265,28 @@ namespace StonewardsPartyHUD
                 CloseBuildInspector();
             else if (!IsBlockingGameMenuOpen())
             {
-                if (Input.GetKeyDown(KeyCode.F8))
+                if (_toggleBuildInspectorShortcut.Value.IsDown())
                 {
                     _showBuilds = !_showBuilds;
                     _nextBuildRefresh = 0f;
                     if (!_showBuilds)
                         _buildPlayers.Clear();
                 }
-                if (_showBuilds && Input.GetKeyDown(KeyCode.F9) &&
-                    _buildPlayers.Count > 0)
+                else if (_showBuilds)
                 {
-                    _buildPlayerIndex = (_buildPlayerIndex + 1) % _buildPlayers.Count;
-                    _buildPage = 0;
+                    // Else-if gives each keypress one action even when
+                    // multiple commands are accidentally bound identically.
+                    if (_nextBuildPlayerShortcut.Value.IsDown() &&
+                        _buildPlayers.Count > 0)
+                    {
+                        _buildPlayerIndex = (_buildPlayerIndex + 1) % _buildPlayers.Count;
+                        _buildPage = 0;
+                    }
+                    else if (_nextBuildPageShortcut.Value.IsDown())
+                        _buildPage++;
+                    else if (_previousBuildPageShortcut.Value.IsDown())
+                        _buildPage = Math.Max(0, _buildPage - 1);
                 }
-                if (_showBuilds && Input.GetKeyDown(KeyCode.PageDown))
-                    _buildPage++;
-                if (_showBuilds && Input.GetKeyDown(KeyCode.PageUp))
-                    _buildPage = Math.Max(0, _buildPage - 1);
             }
 
             if (Time.unscaledTime < _nextRefresh)
@@ -1245,8 +1266,12 @@ namespace StonewardsPartyHUD
                     downed + " DOWN", _alertStyle);
             else if (_enableBuildInspector.Value &&
                 Mirror.NetworkServer.active && Mirror.NetworkClient.active)
+            {
+                string hint = ShortcutLabel(_toggleBuildInspectorShortcut.Value) +
+                    (_showBuilds ? " CLOSE" : " BUILDS");
                 GUI.Label(new Rect(x + 14f, y + 28f, 116f, 18f),
-                    _showBuilds ? "F8 CLOSE" : "F8 BUILDS", _buildHelpStyle);
+                    FitText(hint, _buildHelpStyle, 116f), _buildHelpStyle);
+            }
             GUI.Label(new Rect(x + PanelWidth - 80f, y + 2f, 66f, 29f),
                 _players.Count + " / 4", _countStyle);
 
@@ -1282,7 +1307,9 @@ namespace StonewardsPartyHUD
                     _buildDetailStyle);
                 GUI.Label(new Rect(x + 16f, y + BuildWindowHeight - 28f,
                     BuildWindowWidth - 32f, 18f),
-                    "F8 CLOSE", _buildHelpStyle);
+                    FitText(ShortcutLabel(_toggleBuildInspectorShortcut.Value) +
+                        " CLOSE", _buildHelpStyle, BuildWindowWidth - 32f),
+                    _buildHelpStyle);
                 return;
             }
 
@@ -1344,13 +1371,22 @@ namespace StonewardsPartyHUD
                 }
             }
 
-            Fill(new Rect(x + 12f, y + BuildWindowHeight - 32f,
+            Fill(new Rect(x + 12f, y + BuildWindowHeight - 56f,
                 BuildWindowWidth - 24f, 1f), PanelDivider);
             _buildHelpStyle.normal.textColor = new Color(0.92f, 0.83f, 0.70f);
+            string playerHotkeys = ShortcutLabel(_toggleBuildInspectorShortcut.Value) +
+                " CLOSE   " + ShortcutLabel(_nextBuildPlayerShortcut.Value) + " PLAYER";
+            string pageHotkeys = ShortcutLabel(_previousBuildPageShortcut.Value) +
+                " PREV   " + ShortcutLabel(_nextBuildPageShortcut.Value) +
+                " NEXT   " + (_buildPage + 1) + "/" + totalPages;
+            GUI.Label(new Rect(x + 15f, y + BuildWindowHeight - 51f,
+                BuildWindowWidth - 29f, 18f),
+                FitText(playerHotkeys, _buildHelpStyle, BuildWindowWidth - 29f),
+                _buildHelpStyle);
             GUI.Label(new Rect(x + 15f, y + BuildWindowHeight - 28f,
                 BuildWindowWidth - 29f, 18f),
-                "F8 CLOSE   F9 NEXT   PGUP/DN " +
-                (_buildPage + 1) + "/" + totalPages, _buildHelpStyle);
+                FitText(pageHotkeys, _buildHelpStyle, BuildWindowWidth - 29f),
+                _buildHelpStyle);
         }
 
         private static Color GetRingRarityColor(Rarity rarity)
@@ -1647,6 +1683,25 @@ namespace StonewardsPartyHUD
             };
             style.normal.textColor = color;
             return style;
+        }
+
+        private static string ShortcutLabel(KeyboardShortcut shortcut)
+        {
+            // Use the actual user-configured binding in every on-screen hint.
+            // Keep labels compact without changing which physical key is used.
+            if (shortcut.MainKey == KeyCode.None)
+                return "UNBOUND";
+
+            return shortcut.ToString().ToUpperInvariant()
+                .Replace("LEFTCONTROL", "LCTRL")
+                .Replace("RIGHTCONTROL", "RCTRL")
+                .Replace("LEFTSHIFT", "LSHIFT")
+                .Replace("RIGHTSHIFT", "RSHIFT")
+                .Replace("LEFTALT", "LALT")
+                .Replace("RIGHTALT", "RALT")
+                .Replace("PAGEDOWN", "PGDN")
+                .Replace("PAGEUP", "PGUP")
+                .Replace(" + ", "+");
         }
 
         private static string CleanName(string name)
