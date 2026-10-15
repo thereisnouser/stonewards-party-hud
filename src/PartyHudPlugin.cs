@@ -808,7 +808,20 @@ namespace StonewardsPartyHUD
             // The reader only accepts numeric values from a native game
             // component associated with the King. If none can be verified,
             // hide this row rather than displaying an unrelated actor's HP.
-            _hasKing = _kingReader.TryRead(out _kingHealth, out _kingMaxHealth);
+            try
+            {
+                _hasKing = _kingReader.TryRead(out _kingHealth, out _kingMaxHealth);
+            }
+            catch (Exception ex)
+            {
+                // An unfamiliar game health API must not break the rest of HUD.
+                _hasKing = false;
+                if (Time.unscaledTime >= _nextWarning)
+                {
+                    Logger.LogWarning("Could not read King health: " + ex);
+                    _nextWarning = Time.unscaledTime + 10f;
+                }
+            }
         }
 
         private static GameObject FindCharacterVisuals(FirstPersonController player)
