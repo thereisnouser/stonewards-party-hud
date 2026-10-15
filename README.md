@@ -30,7 +30,7 @@ Install [PartyHUD on Thunderstore](https://thunderstore.io/c/stonewards/p/therei
 Press **F7** while playing to open **PARTY HUD SETTINGS**. No additional mod is required.
 
 - **DISPLAY:** toggle the panel, teammate outlines and nicknames, through-wall outlines, host ping, Hunter bear and wall HP, and host ring inspector.
-- **LAYOUT:** adjust panel size, horizontal/vertical offsets measured in screen pixels, top/bottom anchoring, and resolution scaling. With **Avoid native player roster** enabled, the panel automatically stays below the game's player list. Moving the vertical-offset slider switches to manual positioning and turns off roster avoidance so the slider always responds. Switch roster avoidance back **ON** to restore automatic clearance.
+- **LAYOUT:** adjust panel size, horizontal/vertical offsets measured in screen pixels, top/bottom anchoring, and resolution scaling. By default, the HUD sits **8 px from the top and left screen edges** (or 8 px from the bottom if bottom-anchored), even if this overlaps Stonewards' built-in player list. **Avoid native player roster** is off by default; turn it **ON** to restore automatic clearance. Moving the vertical-offset slider switches back to manual positioning.
 - **HOTKEYS:** click an action, then press a key (or hold Ctrl/Shift/Alt while pressing it). Press **Esc** to cancel capturing. **RESTORE DEFAULT HOTKEYS** resets the five shortcuts. You can always click **X** to close settings.
 
 Changes take effect immediately and are saved to the current BepInEx profile. Shortcut labels in the HUD reflect your choices. The build inspector remains **host-only**, but the settings menu is available to every PartyHUD user.
