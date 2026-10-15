@@ -29,8 +29,6 @@ namespace StonewardsPartyHUD
         private const int BuildRingsPerPage = 6;
         private const float SettingsWidth = 500f;
         private const float SettingsHeight = 540f;
-        private const float NativeRosterHeaderSafeZone = 130f;
-        private const float NativeRosterPlayerRowSafeZone = 42f;
         private const float ReferenceScreenWidth = 1920f;
         private const float ReferenceScreenHeight = 1080f;
         // Match the approved compact on-screen proportions (~296px wide
@@ -126,7 +124,6 @@ namespace StonewardsPartyHUD
         private ConfigEntry<float> _outlineWidth;
         private ConfigEntry<int> _leftOffset;
         private ConfigEntry<int> _topOffset;
-        private ConfigEntry<bool> _avoidNativeRoster;
         private ConfigEntry<int> _bottomOffset;
         private ConfigEntry<PanelAnchor> _anchor;
         private float _nextRefresh;
@@ -256,9 +253,7 @@ namespace StonewardsPartyHUD
             _leftOffset = Config.Bind("Appearance", "LeftOffset", 8,
                 "Distance from the left screen edge, in screen pixels.");
             _topOffset = Config.Bind("Appearance", "TopOffset", 8,
-                "Distance from the top screen edge in pixels. AvoidNativePlayerNames may increase this until manually overridden.");
-            _avoidNativeRoster = Config.Bind("Appearance", "AvoidNativePlayerNames", false,
-                "Automatically keep Party HUD below Stonewards' native player names. Moving the vertical offset slider in-game disables this to allow manual positioning.");
+                "Distance from the top screen edge in screen pixels.");
             _bottomOffset = Config.Bind("Appearance", "BottomOffset", 8,
                 "Distance from the bottom screen edge in screen pixels.");
             Logger.LogInfo("Party HUD v" + PluginVersion + " initialized.");
@@ -1325,11 +1320,8 @@ namespace StonewardsPartyHUD
             float scale = baseScale * resolutionScale;
 
             // Stored offsets refer to physical screen pixels, regardless of
-            // the HUD's GUI scaling. Automatic roster clearance is optional.
+            // the HUD's GUI scaling. Manual offsets are always respected.
             float topOffsetPx = Mathf.Max(0f, _topOffset.Value);
-            if (_avoidNativeRoster.Value && _anchor.Value == PanelAnchor.TopLeft)
-                topOffsetPx = Mathf.Max(topOffsetPx,
-                    NativeRosterHeaderSafeZone + _players.Count * NativeRosterPlayerRowSafeZone);
 
             // Always keep the window inside the display, including four
             // players, companion rows and an optional wall.
@@ -1570,14 +1562,9 @@ namespace StonewardsPartyHUD
 
         private void DrawLayoutSettings(float x, float y)
         {
-            string positioningHint = _avoidNativeRoster.Value &&
-                _anchor.Value == PanelAnchor.TopLeft
-                ? "AUTO ROSTER CLEARANCE ON - MOVE OFFSET TO OVERRIDE"
-                : "OFFSETS ARE MEASURED FROM SCREEN EDGES";
             GUI.Label(new Rect(x + 23f, y + 104f,
                 SettingsWidth - 46f, 25f),
-                FitText(positioningHint, _buildDetailStyle, SettingsWidth - 46f),
-                _buildDetailStyle);
+                "OFFSETS ARE MEASURED FROM SCREEN EDGES", _buildDetailStyle);
             SettingsSlider(x, y + 139f, "HUD size",
                 _scale.Value, 0.65f, 1.8f,
                 value => _scale.Value = (float)Math.Round(value, 2),
@@ -1590,15 +1577,7 @@ namespace StonewardsPartyHUD
                 ? _topOffset : _bottomOffset;
             SettingsSlider(x, y + 287f, "Vertical offset",
                 verticalOffset.Value, 0f, 460f,
-                value =>
-                {
-                    verticalOffset.Value = Mathf.RoundToInt(value);
-                    // Manual positioning takes priority over the automatic
-                    // native-roster safe zone that used to pin this slider.
-                    if (_anchor.Value == PanelAnchor.TopLeft &&
-                        _avoidNativeRoster.Value)
-                        _avoidNativeRoster.Value = false;
-                },
+                value => verticalOffset.Value = Mathf.RoundToInt(value),
                 verticalOffset.Value + " px");
             GUI.Label(new Rect(x + 23f, y + 362f, 165f, 27f),
                 "Panel anchor", _buildNameStyle);
@@ -1614,10 +1593,8 @@ namespace StonewardsPartyHUD
                 _anchor.Value = PanelAnchor.BottomLeft;
                 Config.Save();
             }
-            SettingsToggle(x, y + 406f, "Scale with resolution",
+            SettingsToggle(x, y + 428f, "Scale with resolution",
                 _autoScaleToResolution);
-            SettingsToggle(x, y + 448f, "Avoid native player roster",
-                _avoidNativeRoster);
         }
 
         private void DrawHotkeySettings(float x, float y)
