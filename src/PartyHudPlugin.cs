@@ -22,7 +22,10 @@ namespace StonewardsPartyHUD
         private const float RowHeight = 67f;
         private const float CompanionRowHeight = 38f;
         private const float WallRowHeight = 66f;
-        private const float FooterPadding = 8f;
+        // Reserve a footer for visible SETTINGS / BUILDS shortcuts.
+        private const float FooterPadding = 54f;
+        private const float HudActionButtonWidth = 120f;
+        private const float HudActionButtonHeight = 35f;
         private const float BuildWindowWidth = 348f;
         private const float BuildWindowHeight = 434f;
         private const float BuildRingRowHeight = 42f;
@@ -152,6 +155,7 @@ namespace StonewardsPartyHUD
         private GUIStyle _buildDetailStyle;
         private GUIStyle _buildHelpStyle;
         private GUIStyle _settingsButtonStyle;
+        private GUIStyle _hudShortcutStyle;
         private Font _nativeUiFont;
         private float _nextNativeFontLookup;
 
@@ -298,10 +302,7 @@ namespace StonewardsPartyHUD
             {
                 if (_toggleBuildInspectorShortcut.Value.IsDown())
                 {
-                    _showBuilds = !_showBuilds;
-                    _nextBuildRefresh = 0f;
-                    if (!_showBuilds)
-                        _buildPlayers.Clear();
+                    ToggleBuildInspector();
                 }
                 else if (_showBuilds)
                 {
@@ -434,6 +435,14 @@ namespace StonewardsPartyHUD
             // Do not override an inventory/upgrade/loading screen's own state.
             input.SetState(SettingsReturnState());
             _settingsInputRestorePending = false;
+        }
+
+        private void ToggleBuildInspector()
+        {
+            _showBuilds = !_showBuilds;
+            _nextBuildRefresh = 0f;
+            if (!_showBuilds)
+                _buildPlayers.Clear();
         }
 
         private void CloseBuildInspector()
@@ -1291,13 +1300,24 @@ namespace StonewardsPartyHUD
                 DrawSettingsWindow();
             }
 
+            // Keep the HUD non-interactive during normal locked-cursor gameplay.
+            // When another UI has released the cursor, its two action buttons
+            // can also be clicked without enabling mouse capture for the HUD.
+            bool repaint = Event.current.type == EventType.Repaint;
+            bool cursorFree = !_settingsOpen &&
+                Cursor.lockState == CursorLockMode.None && Cursor.visible;
+            var input = InputManager.Instance;
+            bool allowHudClicks = cursorFree && input != null &&
+                (input.CurrentInputState == InputManager.InputState.Gameplay ||
+                 input.CurrentInputState == InputManager.InputState.Dead);
+
             if (!_enabled.Value || _players.Count == 0 ||
-                !Mirror.NetworkClient.active ||
-                Event.current.type != EventType.Repaint)
+                !Mirror.NetworkClient.active || (!repaint && !allowHudClicks))
                 return;
 
             EnsureStyles();
-            DrawTeammatePlayerNames();
+            if (repaint)
+                DrawTeammatePlayerNames();
 
             float height = HeaderHeight + _players.Count * RowHeight + FooterPadding;
             if (_hasWall)
@@ -1357,8 +1377,10 @@ namespace StonewardsPartyHUD
             try
             {
                 GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
-                DrawPanel(x, y, height);
-                if (_showBuilds && Mirror.NetworkServer.active &&
+                if (repaint)
+                    DrawPanel(x, y, height);
+                DrawHudActionButtons(x, y, height, repaint, allowHudClicks);
+                if (repaint && _showBuilds && Mirror.NetworkServer.active &&
                     Mirror.NetworkClient.active && _enableBuildInspector.Value)
                 {
                     // Separate optional window, adjacent to the normal HUD.
@@ -1393,15 +1415,6 @@ namespace StonewardsPartyHUD
             if (downed > 0)
                 GUI.Label(new Rect(x + 14f, y + 28f, 116f, 18f),
                     downed + " DOWN", _alertStyle);
-            else if (_enableBuildInspector.Value &&
-                Mirror.NetworkServer.active && Mirror.NetworkClient.active)
-            {
-                string hint = ShortcutLabel(_toggleBuildInspectorShortcut.Value) +
-                    (_showBuilds ? " CLOSE" : " BUILDS");
-                GUI.Label(new Rect(x + 14f, y + 28f, PanelWidth - 28f, 18f),
-                    FitText(hint, _buildHelpStyle, PanelWidth - 28f),
-                    _buildHelpStyle);
-            }
             GUI.Label(new Rect(x + PanelWidth - 80f, y + 2f, 66f, 29f),
                 _players.Count + " / 4", _countStyle);
 
@@ -1418,6 +1431,63 @@ namespace StonewardsPartyHUD
             }
             if (_hasWall)
                 DrawWallHealth(x, rowY);
+        }
+
+        private void DrawHudActionButtons(float x, float y, float height,
+            bool repaint, bool interactive)
+        {
+            float buttonY = y + height - FooterPadding + 10f;
+            var settingsRect = new Rect(x + 14f, buttonY,
+                HudActionButtonWidth, HudActionButtonHeight);
+            var buildsRect = new Rect(x + PanelWidth - 14f -
+                HudActionButtonWidth, buttonY, HudActionButtonWidth,
+                HudActionButtonHeight);
+            bool host = Mirror.NetworkServer.active && Mirror.NetworkClient.active;
+            bool canInspect = host && _enableBuildInspector.Value;
+            string buildsShortcut = !_enableBuildInspector.Value
+                ? "DISABLED" : host
+                    ? ShortcutLabel(_toggleBuildInspectorShortcut.Value)
+                    : "HOST ONLY";
+
+            if (repaint)
+            {
+                Fill(new Rect(x + 12f, buttonY - 6f,
+                    PanelWidth - 24f, 1f), PanelDivider);
+                DrawHudActionButton(settingsRect, "SETTINGS",
+                    ShortcutLabel(_toggleSettingsShortcut.Value), false, true);
+                DrawHudActionButton(buildsRect, "BUILDS",
+                    buildsShortcut, _showBuilds, canInspect);
+            }
+
+            // Unity locks the pointer during gameplay. The shortcuts remain
+            // usable then; GUI.Button is only active when a cursor is free.
+            if (!interactive)
+                return;
+
+            if (GUI.Button(settingsRect, GUIContent.none, GUIStyle.none))
+            {
+                OpenSettings();
+                return;
+            }
+            if (canInspect &&
+                GUI.Button(buildsRect, GUIContent.none, GUIStyle.none))
+                ToggleBuildInspector();
+        }
+
+        private void DrawHudActionButton(Rect area, string caption,
+            string shortcut, bool selected, bool enabled)
+        {
+            Fill(area, selected ? PanelHeader : SlotBackground);
+            Fill(new Rect(area.x, area.y, area.width, 1f),
+                enabled ? PanelFrame : PanelDivider);
+            Fill(new Rect(area.x, area.y + area.height - 1f,
+                area.width, 1f), enabled ? PanelFrame : PanelDivider);
+            GUI.Label(new Rect(area.x + 4f, area.y + 1f,
+                area.width - 8f, 19f), caption, _settingsButtonStyle);
+            GUI.Label(new Rect(area.x + 4f, area.y + 19f,
+                area.width - 8f, 15f),
+                FitText(shortcut, _hudShortcutStyle, area.width - 8f),
+                _hudShortcutStyle);
         }
 
         private void DrawSettingsWindow()
@@ -2044,6 +2114,8 @@ namespace StonewardsPartyHUD
                     new Color(0.93f, 0.84f, 0.69f), TextAnchor.MiddleLeft, true);
                 _settingsButtonStyle = MakeStyle(15,
                     new Color(0.98f, 0.90f, 0.76f), TextAnchor.MiddleCenter, true);
+                _hudShortcutStyle = MakeStyle(11,
+                    new Color(0.93f, 0.84f, 0.69f), TextAnchor.MiddleCenter, true);
             }
             TryApplyNativeFont();
         }
@@ -2074,7 +2146,7 @@ namespace StonewardsPartyHUD
                 _badgeStyle, _healthStyle, _statusStyle, _companionStyle,
                 _alertStyle, _wallStatusStyle, _pingStyle,
                 _buildNameStyle, _buildDetailStyle, _buildHelpStyle,
-                _settingsButtonStyle
+                _settingsButtonStyle, _hudShortcutStyle
             };
             foreach (var style in styles)
             {
@@ -2096,6 +2168,7 @@ namespace StonewardsPartyHUD
             _buildDetailStyle.fontSize = 15;
             _buildHelpStyle.fontSize = 12;
             _settingsButtonStyle.fontSize = 18;
+            _hudShortcutStyle.fontSize = 13;
             Logger.LogInfo("Party HUD is using Stonewards UI font: " + _nativeUiFont.name);
         }
 
