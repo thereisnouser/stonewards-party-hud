@@ -69,6 +69,7 @@ Use a separate r2modman testing profile with its own BepInExPack and **disable t
 - [ ] **DISPLAY:** each toggle immediately changes the corresponding live behavior and remains saved after restarting the same profile.
 - [ ] **LAYOUT:** sliders, anchor buttons and resolution scaling behave correctly at 1920×1080 and another resolution; manual offsets are respected even over the native player roster, and values persist across restart.
 - [ ] **HOTKEYS:** rebind F7/F8/F9/PageUp/PageDown to distinct keys and Ctrl/Shift/Alt combinations, verify actions, then restore defaults. Escape cancels key capture without changing a binding; an already-used shortcut is rejected. The menu remains closable via **X** even after rebinding F7.
+- [ ] **HUD action buttons:** SETTINGS and BUILDS appear together at the panel bottom without obscuring health or wall status; current rebound shortcuts fit at different screen resolutions; BUILDS shows HOST ONLY on clients and DISABLED when switched off. Keyboard shortcuts work during normal locked-cursor gameplay; when the cursor is independently unlocked, clicking the buttons works and does not intercept unrelated mouse actions.
 - [ ] **Regression:** host-only ring inspector, player health, wall health, teammate outlines, nicknames, Hunter companion and ping still work in a two-player game, and the passive HUD does not intercept mouse input.
 - [ ] **Release:** only after the gameplay checks succeed, build and inspect the matching ZIP and publish the tested version through the authorized Thunderstore account.
 
