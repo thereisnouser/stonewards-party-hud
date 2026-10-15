@@ -1301,8 +1301,8 @@ namespace StonewardsPartyHUD
             }
 
             // Keep the HUD non-interactive during normal locked-cursor gameplay.
-            // When another UI has released the cursor, its two action buttons
-            // can also be clicked without enabling mouse capture for the HUD.
+            // When the cursor is already released, the action shortcuts can
+            // also be clicked without changing the game's cursor state.
             bool repaint = Event.current.type == EventType.Repaint;
             bool cursorFree = !_settingsOpen &&
                 Cursor.lockState == CursorLockMode.None && Cursor.visible;
@@ -1379,7 +1379,7 @@ namespace StonewardsPartyHUD
                 GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
                 if (repaint)
                     DrawPanel(x, y, height);
-                DrawHudActionButtons(x, y, height, repaint, allowHudClicks);
+                DrawHudActionButtons(x, y, height, scale, repaint, allowHudClicks);
                 if (repaint && _showBuilds && Mirror.NetworkServer.active &&
                     Mirror.NetworkClient.active && _enableBuildInspector.Value)
                 {
@@ -1434,7 +1434,7 @@ namespace StonewardsPartyHUD
         }
 
         private void DrawHudActionButtons(float x, float y, float height,
-            bool repaint, bool interactive)
+            float scale, bool repaint, bool interactive)
         {
             float buttonY = y + height - FooterPadding + 10f;
             var settingsRect = new Rect(x + 14f, buttonY,
@@ -1459,19 +1459,25 @@ namespace StonewardsPartyHUD
                     buildsShortcut, _showBuilds, canInspect);
             }
 
-            // Unity locks the pointer during gameplay. The shortcuts remain
-            // usable then; GUI.Button is only active when a cursor is free.
-            if (!interactive)
+            // The passive HUD never registers IMGUI controls, which could
+            // interfere with gameplay or mismatch control IDs on Repaint.
+            // Honor clicks only when a free cursor exists; convert screen
+            // coordinates to the scaled HUD's GUI coordinate space.
+            if (!interactive || Event.current.type != EventType.MouseDown ||
+                Event.current.button != 0)
                 return;
 
-            if (GUI.Button(settingsRect, GUIContent.none, GUIStyle.none))
+            Vector2 pointer = Event.current.mousePosition / scale;
+            if (settingsRect.Contains(pointer))
             {
+                Event.current.Use();
                 OpenSettings();
-                return;
             }
-            if (canInspect &&
-                GUI.Button(buildsRect, GUIContent.none, GUIStyle.none))
+            else if (canInspect && buildsRect.Contains(pointer))
+            {
+                Event.current.Use();
                 ToggleBuildInspector();
+            }
         }
 
         private void DrawHudActionButton(Rect area, string caption,
