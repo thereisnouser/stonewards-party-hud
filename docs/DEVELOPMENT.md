@@ -64,7 +64,7 @@ Use a separate r2modman testing profile with its own BepInExPack and **disable t
 ### Required gameplay checks before the next release
 
 - [ ] **Compilation and plugin load:** `dotnet build` succeeds, the script prints the expected DLL SHA256, and `BepInEx/LogOutput.log` contains `Party HUD v0.3.2 initialized.` in the test profile.
-- [ ] **Menu lifecycle:** F7 opens and closes settings; the **X** button closes it; cursor becomes usable inside settings and returns to the game's prior lock/visibility state when closing.
+- [ ] **Menu lifecycle and input:** F7 opens and closes settings; the **X** button closes it; while the menu is open, moving/clicking the mouse and pressing WASD must not aim, attack or move the character. When it closes, gameplay controls and the cursor's previous state return immediately.
 - [ ] **Other game screens:** when opening inventory, shop, character selection, upgrades, quests or loading screens, PartyHUD settings close or stay hidden, and the game keeps control of its own cursor.
 - [ ] **DISPLAY:** each toggle immediately changes the corresponding live behavior and remains saved after restarting the same profile.
 - [ ] **LAYOUT:** sliders, anchor buttons, resolution scaling and native-roster avoidance behave correctly at 1920×1080 and another resolution; values persist across restart.
