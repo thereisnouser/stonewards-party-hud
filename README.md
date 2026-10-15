@@ -12,7 +12,7 @@ A lightweight, **client-side** party HUD for **Stonewards**, styled to fit the g
 
 - **Party status:** player names, class icons, current/max HP and downed state.
 - **Teammate tracking:** optional outlines and floating nicknames, including through walls.
-- **Extra health bars:** Hunter's bear companion and defensive wall health.
+- **Extra health bars:** Hunter's bear companion, defensive wall durability, and the King's health (when the game exposes a readable health component). The King appears immediately below the wall, with numeric current/max HP and a colored bar.
 - **Host ping:** the host can see measured connection latency for teammates (in ms).
 - **Host ring inspector:** inspect teammates' selected rings, rarities and pick counts. The default shortcuts are **F8** (open/close), **F9** (next player), **PageUp** (previous page) and **PageDown** (next page).
 - **In-game settings:** press **F7** to open the built-in Stonewards-style settings menu. Configure visible HUD features, scaling, position, and all five hotkeys without installing another mod.
@@ -30,7 +30,7 @@ Install [PartyHUD on Thunderstore](https://thunderstore.io/c/stonewards/p/therei
 
 Press **F7** while playing to open **PARTY HUD SETTINGS**. No additional mod is required.
 
-- **DISPLAY:** toggle the panel, teammate outlines and nicknames, through-wall outlines, host ping, Hunter bear and wall HP, and host ring inspector.
+- **DISPLAY:** toggle the panel, teammate outlines and nicknames, through-wall outlines, host ping, Hunter bear, wall and King HP, and host ring inspector.
 - **LAYOUT:** adjust panel size, horizontal/vertical offsets measured in screen pixels, top/bottom anchoring, and resolution scaling. By default, the HUD sits **8 px from the top and left screen edges** (or 8 px from the bottom if bottom-anchored). Manual positioning always takes priority, even if the panel overlaps Stonewards' built-in player list.
 - **HOTKEYS:** click an action, then press a key (or hold Ctrl/Shift/Alt while pressing it). Press **Esc** to cancel capturing. **RESTORE DEFAULT HOTKEYS** resets the five shortcuts. You can always click **X** to close settings.
 
