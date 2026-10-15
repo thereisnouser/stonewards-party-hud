@@ -1269,8 +1269,9 @@ namespace StonewardsPartyHUD
             {
                 string hint = ShortcutLabel(_toggleBuildInspectorShortcut.Value) +
                     (_showBuilds ? " CLOSE" : " BUILDS");
-                GUI.Label(new Rect(x + 14f, y + 28f, 116f, 18f),
-                    FitText(hint, _buildHelpStyle, 116f), _buildHelpStyle);
+                GUI.Label(new Rect(x + 14f, y + 28f, PanelWidth - 28f, 18f),
+                    FitText(hint, _buildHelpStyle, PanelWidth - 28f),
+                    _buildHelpStyle);
             }
             GUI.Label(new Rect(x + PanelWidth - 80f, y + 2f, 66f, 29f),
                 _players.Count + " / 4", _countStyle);
