@@ -55,6 +55,21 @@ No automated CI build is configured because the project compiles against assembl
 
 The packing script creates a ZIP only; it does not publish or tag releases. Thunderstore package versions cannot be overwritten: bump `packaging/manifest.json` for each subsequent upload.
 
-## Verified status
+## Current status and in-game menu test checklist
 
-The user confirmed the published v0.2.0 HUD and has accepted v0.2.1's resolution-proportional panel scaling and host-side ping in live gameplay. Source/manifest are at v0.2.1; its ZIP must be built from the current source, checked in a clean manager profile, and then uploaded under the existing Thunderstore package. The packaging script checks the source, manifest and compiled DLL versions. The uploader is manual; the script never publishes a release. See [Issue #4](https://github.com/thereisnouser/stonewards-party-hud/issues/4) for release progress.
+The v0.3.2 source now contains a built-in **F7** settings menu with three tabs: **DISPLAY**, **LAYOUT**, and **HOTKEYS**. Its five shortcuts use BepInEx `KeyboardShortcut` values and are persisted in the active profile config. The repository implementation is **not a verified gameplay release** until a local game build and interactive tests have passed; do not publish a new Thunderstore package based only on source inspection.
+
+Use a separate r2modman testing profile with its own BepInExPack and **disable the installed Thunderstore PartyHUD package in that profile**. Build with `-ProfileDir`, then launch that exact profile via **Start modded**. Never test by overwriting the regular playing profile.
+
+### Required gameplay checks before the next release
+
+- [ ] **Compilation and plugin load:** `dotnet build` succeeds, the script prints the expected DLL SHA256, and `BepInEx/LogOutput.log` contains `Party HUD v0.3.2 initialized.` in the test profile.
+- [ ] **Menu lifecycle:** F7 opens and closes settings; the **X** button closes it; cursor becomes usable inside settings and returns to the game's prior lock/visibility state when closing.
+- [ ] **Other game screens:** when opening inventory, shop, character selection, upgrades, quests or loading screens, PartyHUD settings close or stay hidden, and the game keeps control of its own cursor.
+- [ ] **DISPLAY:** each toggle immediately changes the corresponding live behavior and remains saved after restarting the same profile.
+- [ ] **LAYOUT:** sliders, anchor buttons, resolution scaling and native-roster avoidance behave correctly at 1920×1080 and another resolution; values persist across restart.
+- [ ] **HOTKEYS:** rebind F7/F8/F9/PageUp/PageDown to distinct keys and Ctrl/Shift/Alt combinations, verify actions, then restore defaults. Escape cancels key capture without changing a binding; an already-used shortcut is rejected. The menu remains closable via **X** even after rebinding F7.
+- [ ] **Regression:** host-only ring inspector, player health, wall health, teammate outlines, nicknames, Hunter companion and ping still work in a two-player game, and the passive HUD does not intercept mouse input.
+- [ ] **Release:** only after the gameplay checks succeed, build and inspect the matching ZIP and publish the tested version through the authorized Thunderstore account.
+
+Legacy verification: earlier playtests established the v0.2.x baseline (HUD and scale/ping behavior). They do **not** establish that the new v0.3.2 in-game menu has been tested.
