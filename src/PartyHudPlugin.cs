@@ -253,13 +253,13 @@ namespace StonewardsPartyHUD
                 "Outline thickness; clamped to 0.5 - 6.0.");
             _anchor = Config.Bind("Appearance", "Anchor", PanelAnchor.TopLeft,
                 "Panel location: TopLeft (recommended) or BottomLeft.");
-            _leftOffset = Config.Bind("Appearance", "LeftOffset", 20,
+            _leftOffset = Config.Bind("Appearance", "LeftOffset", 8,
                 "Distance from the left screen edge, in screen pixels.");
-            _topOffset = Config.Bind("Appearance", "TopOffset", 105,
+            _topOffset = Config.Bind("Appearance", "TopOffset", 8,
                 "Distance from the top screen edge in pixels. AvoidNativePlayerNames may increase this until manually overridden.");
-            _avoidNativeRoster = Config.Bind("Appearance", "AvoidNativePlayerNames", true,
+            _avoidNativeRoster = Config.Bind("Appearance", "AvoidNativePlayerNames", false,
                 "Automatically keep Party HUD below Stonewards' native player names. Moving the vertical offset slider in-game disables this to allow manual positioning.");
-            _bottomOffset = Config.Bind("Appearance", "BottomOffset", 140,
+            _bottomOffset = Config.Bind("Appearance", "BottomOffset", 8,
                 "Distance from the bottom screen edge in screen pixels.");
             Logger.LogInfo("Party HUD v" + PluginVersion + " initialized.");
         }
