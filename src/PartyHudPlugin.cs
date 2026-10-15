@@ -22,6 +22,7 @@ namespace StonewardsPartyHUD
         private const float RowHeight = 67f;
         private const float CompanionRowHeight = 38f;
         private const float WallRowHeight = 66f;
+        private const float KingRowHeight = 66f;
         // Reserve a footer for visible SETTINGS / BUILDS shortcuts.
         private const float FooterPadding = 54f;
         private const float HudActionButtonWidth = 120f;
@@ -56,6 +57,7 @@ namespace StonewardsPartyHUD
 
         // Only components installed by this plugin are tracked and removed.
         private readonly List<PlayerEntry> _players = new List<PlayerEntry>(4);
+        private readonly KingHealthReader _kingReader = new KingHealthReader();
         private readonly Dictionary<FirstPersonController, OutlineEntry> _teamOutlines =
             new Dictionary<FirstPersonController, OutlineEntry>();
         private readonly List<FirstPersonController> _expiredOutlines = new List<FirstPersonController>();
@@ -113,6 +115,7 @@ namespace StonewardsPartyHUD
         private ConfigEntry<bool> _autoScaleToResolution;
         private ConfigEntry<bool> _showCompanionHealth;
         private ConfigEntry<bool> _showWallHealth;
+        private ConfigEntry<bool> _showKingHealth;
         private ConfigEntry<bool> _showHostPing;
         private ConfigEntry<bool> _enableBuildInspector;
         private ConfigEntry<KeyboardShortcut> _toggleSettingsShortcut;
@@ -136,6 +139,10 @@ namespace StonewardsPartyHUD
         private float _wallMaxHealth;
         private int _wallSections;
         private bool _wallBreached;
+        private float _nextKingRefresh;
+        private bool _hasKing;
+        private float _kingHealth;
+        private float _kingMaxHealth;
         private float _nextWarning;
         private float _nextPingDiagnostic;
         private float _nextOutlineShaderRetry;
@@ -223,6 +230,8 @@ namespace StonewardsPartyHUD
                 "Show a Hunter's companion health directly below the Hunter's entry.");
             _showWallHealth = Config.Bind("General", "ShowWallHealth", true,
                 "Show combined defensive wall durability beneath the party roster.");
+            _showKingHealth = Config.Bind("General", "ShowKingHealth", true,
+                "Show the King's current and maximum health below wall health when available.");
             _showHostPing = Config.Bind("Appearance", "ShowHostPing", true,
                 "On the hosting player's screen, show each remote player's real Mirror connection RTT in ms. Other clients never display unverified peer ping.");
             _enableBuildInspector = Config.Bind("BuildInspector", "Enabled", true,
@@ -327,6 +336,7 @@ namespace StonewardsPartyHUD
             _nextRefresh = Time.unscaledTime + RefreshSeconds;
             RefreshRoster();
             RefreshWallHealth();
+            RefreshKingHealth();
             UpdateTeammateOutlines();
             if (_showBuilds && Time.unscaledTime >= _nextBuildRefresh)
             {
@@ -781,6 +791,24 @@ namespace StonewardsPartyHUD
                     _nextWarning = Time.unscaledTime + 10f;
                 }
             }
+        }
+
+        private void RefreshKingHealth()
+        {
+            if (Time.unscaledTime < _nextKingRefresh)
+                return;
+
+            _nextKingRefresh = Time.unscaledTime + 0.25f;
+            _hasKing = false;
+            _kingHealth = 0f;
+            _kingMaxHealth = 0f;
+            if (!_showKingHealth.Value || !Mirror.NetworkClient.active)
+                return;
+
+            // The reader only accepts numeric values from a native game
+            // component associated with the King. If none can be verified,
+            // hide this row rather than displaying an unrelated actor's HP.
+            _hasKing = _kingReader.TryRead(out _kingHealth, out _kingMaxHealth);
         }
 
         private static GameObject FindCharacterVisuals(FirstPersonController player)
@@ -1322,6 +1350,8 @@ namespace StonewardsPartyHUD
             float height = HeaderHeight + _players.Count * RowHeight + FooterPadding;
             if (_hasWall)
                 height += WallRowHeight;
+            if (_hasKing)
+                height += KingRowHeight;
             for (int i = 0; i < _players.Count; i++)
                 if (_players[i].Companion != null)
                     height += CompanionRowHeight;
@@ -1430,7 +1460,12 @@ namespace StonewardsPartyHUD
                 }
             }
             if (_hasWall)
+            {
                 DrawWallHealth(x, rowY);
+                rowY += WallRowHeight;
+            }
+            if (_hasKing)
+                DrawKingHealth(x, rowY);
         }
 
         private void DrawHudActionButtons(float x, float y, float height,
@@ -1615,7 +1650,8 @@ namespace StonewardsPartyHUD
             SettingsToggle(x, y + 287f, "Host ping", _showHostPing);
             SettingsToggle(x, y + 324f, "Hunter companion health", _showCompanionHealth);
             SettingsToggle(x, y + 361f, "Wall health", _showWallHealth);
-            SettingsToggle(x, y + 398f, "Host build inspector", _enableBuildInspector);
+            SettingsToggle(x, y + 398f, "King health", _showKingHealth);
+            SettingsToggle(x, y + 435f, "Host build inspector", _enableBuildInspector);
         }
 
         private void SettingsSlider(float x, float rowY, string title,
@@ -2080,6 +2116,47 @@ namespace StonewardsPartyHUD
                         ? new Color(0.95f, 0.53f, 0.26f)
                         : new Color(0.97f, 0.30f, 0.31f);
                 Fill(new Rect(x + 23f, rowY + 51f, barWidth * fraction, 9f), color);
+            }
+        }
+
+        private void DrawKingHealth(float x, float rowY)
+        {
+            // Show the King's health below the wall and above the action footer.
+            Fill(new Rect(x + 4f, rowY, PanelWidth - 8f, KingRowHeight),
+                new Color(0.30f, 0.34f, 0.39f, 0.19f));
+            Fill(new Rect(x + 12f, rowY, PanelWidth - 24f, 1f),
+                PanelDivider);
+
+            bool down = _kingHealth <= 0f;
+            Fill(new Rect(x + 12f, rowY + 11f, 4f, KingRowHeight - 19f),
+                down ? new Color(1f, 0.34f, 0.38f)
+                     : new Color(0.94f, 0.79f, 0.44f));
+
+            GUI.Label(new Rect(x + 23f, rowY + 5f, 128f, 26f),
+                "KING", _nameStyle);
+            string hp = Mathf.CeilToInt(Mathf.Max(0f, _kingHealth)) + " / " +
+                Mathf.CeilToInt(_kingMaxHealth);
+            GUI.Label(new Rect(x + 161f, rowY + 6f, 105f, 26f),
+                hp, _healthStyle);
+
+            _wallStatusStyle.normal.textColor = down
+                ? new Color(1f, 0.49f, 0.47f)
+                : new Color(0.95f, 0.81f, 0.56f);
+            GUI.Label(new Rect(x + 23f, rowY + 30f, PanelWidth - 46f, 17f),
+                down ? "KING DOWN" : "PROTECT THE KING", _wallStatusStyle);
+
+            const float barWidth = PanelWidth - 47f;
+            Fill(new Rect(x + 23f, rowY + 51f, barWidth, 9f), BarTrack);
+            float fraction = Mathf.Clamp01(_kingHealth / _kingMaxHealth);
+            if (fraction > 0f)
+            {
+                Color color = fraction > 0.65f
+                    ? new Color(0.46f, 0.80f, 0.49f)
+                    : fraction > 0.3f
+                        ? new Color(0.98f, 0.75f, 0.36f)
+                        : new Color(0.97f, 0.30f, 0.31f);
+                Fill(new Rect(x + 23f, rowY + 51f, barWidth * fraction, 9f),
+                    color);
             }
         }
 
