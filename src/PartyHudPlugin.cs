@@ -50,6 +50,17 @@ namespace StonewardsPartyHUD
         private static readonly Color SlotBackground = new Color(0.25f, 0.32f, 0.38f);
         private static readonly Color BarTrack = new Color(0.16f, 0.18f, 0.20f, 1f);
 
+        // In-game button palette: graphite fill, a warmer outline and
+        // light text. Keep these distinct from the party-status bars.
+        private static readonly Color HudButtonFill = new Color(55f / 255f, 59f / 255f, 69f / 255f);
+        private static readonly Color HudButtonHover = new Color(70f / 255f, 75f / 255f, 87f / 255f);
+        private static readonly Color HudButtonActive = new Color(79f / 255f, 57f / 255f, 61f / 255f);
+        private static readonly Color HudButtonDisabled = new Color(34f / 255f, 36f / 255f, 41f / 255f);
+        private static readonly Color HudButtonGold = new Color(240f / 255f, 200f / 255f, 94f / 255f);
+        private static readonly Color HudButtonOutline = new Color(178f / 255f, 153f / 255f, 95f / 255f);
+        private static readonly Color HudButtonText = new Color(242f / 255f, 242f / 255f, 242f / 255f);
+        private static readonly Color HudButtonMuted = new Color(169f / 255f, 174f / 255f, 183f / 255f);
+
         private enum PanelAnchor
         {
             TopLeft,
@@ -164,6 +175,7 @@ namespace StonewardsPartyHUD
         private GUIStyle _buildDetailStyle;
         private GUIStyle _buildHelpStyle;
         private GUIStyle _settingsButtonStyle;
+        private GUIStyle _hudActionLabelStyle;
         private GUIStyle _hudShortcutStyle;
         private Font _nativeUiFont;
         private float _nextNativeFontLookup;
@@ -1507,10 +1519,15 @@ namespace StonewardsPartyHUD
 
             if (repaint)
             {
+                // IMGUI coordinates are scaled with the panel. Hover feedback
+                // must only show while the game has released the mouse.
+                Vector2 pointer = Event.current.mousePosition / scale;
                 DrawHudActionButton(settingsRect, "SETTINGS",
-                    ShortcutLabel(_toggleSettingsShortcut.Value), false, true);
+                    ShortcutLabel(_toggleSettingsShortcut.Value), false, true,
+                    interactive && settingsRect.Contains(pointer));
                 DrawHudActionButton(buildsRect, "BUILDS",
-                    buildsShortcut, _showBuilds, canInspect);
+                    buildsShortcut, _showBuilds, canInspect,
+                    interactive && canInspect && buildsRect.Contains(pointer));
             }
 
             // The passive HUD never registers IMGUI controls, which could
@@ -1535,15 +1552,43 @@ namespace StonewardsPartyHUD
         }
 
         private void DrawHudActionButton(Rect area, string caption,
-            string shortcut, bool selected, bool enabled)
+            string shortcut, bool selected, bool enabled, bool hovered)
         {
-            Fill(area, selected ? PanelHeader : SlotBackground);
-            Fill(new Rect(area.x, area.y, area.width, 1f),
-                enabled ? PanelFrame : PanelDivider);
-            Fill(new Rect(area.x, area.y + area.height - 1f,
-                area.width, 1f), enabled ? PanelFrame : PanelDivider);
+            Color fill = !enabled ? HudButtonDisabled
+                : selected ? HudButtonActive
+                : hovered ? HudButtonHover : HudButtonFill;
+            Color outline = !enabled ? PanelDivider
+                : selected || hovered ? HudButtonGold : HudButtonOutline;
+
+            // Pixel-stepped corners echo the native Stonewards panel frame.
+            // Unlike the old flat button, all four sides have a 2px border.
+            Fill(new Rect(area.x + 3f, area.y, area.width - 6f,
+                area.height), fill);
+            Fill(new Rect(area.x, area.y + 3f, area.width,
+                area.height - 6f), fill);
+            const float edge = 2f;
+            Fill(new Rect(area.x + 4f, area.y,
+                area.width - 8f, edge), outline);
+            Fill(new Rect(area.x + 4f, area.y + area.height - edge,
+                area.width - 8f, edge), outline);
+            Fill(new Rect(area.x, area.y + 4f,
+                edge, area.height - 8f), outline);
+            Fill(new Rect(area.x + area.width - edge, area.y + 4f,
+                edge, area.height - 8f), outline);
+            Fill(new Rect(area.x + 2f, area.y + 2f, edge, edge), outline);
+            Fill(new Rect(area.x + area.width - 4f, area.y + 2f,
+                edge, edge), outline);
+            Fill(new Rect(area.x + 2f, area.y + area.height - 4f,
+                edge, edge), outline);
+            Fill(new Rect(area.x + area.width - 4f,
+                area.y + area.height - 4f, edge, edge), outline);
+
+            _hudActionLabelStyle.normal.textColor =
+                enabled ? HudButtonText : HudButtonMuted;
+            _hudShortcutStyle.normal.textColor =
+                enabled ? HudButtonGold : HudButtonMuted;
             GUI.Label(new Rect(area.x + 4f, area.y + 1f,
-                area.width - 8f, 19f), caption, _settingsButtonStyle);
+                area.width - 8f, 19f), caption, _hudActionLabelStyle);
             GUI.Label(new Rect(area.x + 4f, area.y + 19f,
                 area.width - 8f, 15f),
                 FitText(shortcut, _hudShortcutStyle, area.width - 8f),
@@ -2217,8 +2262,10 @@ namespace StonewardsPartyHUD
                     new Color(0.93f, 0.84f, 0.69f), TextAnchor.MiddleLeft, true);
                 _settingsButtonStyle = MakeStyle(15,
                     new Color(0.98f, 0.90f, 0.76f), TextAnchor.MiddleCenter, true);
+                _hudActionLabelStyle = MakeStyle(14,
+                    HudButtonText, TextAnchor.MiddleCenter, true);
                 _hudShortcutStyle = MakeStyle(11,
-                    new Color(0.93f, 0.84f, 0.69f), TextAnchor.MiddleCenter, true);
+                    HudButtonGold, TextAnchor.MiddleCenter, true);
             }
             TryApplyNativeFont();
         }
@@ -2249,7 +2296,7 @@ namespace StonewardsPartyHUD
                 _badgeStyle, _healthStyle, _statusStyle, _companionStyle,
                 _alertStyle, _wallStatusStyle, _pingStyle,
                 _buildNameStyle, _buildDetailStyle, _buildHelpStyle,
-                _settingsButtonStyle, _hudShortcutStyle
+                _settingsButtonStyle, _hudActionLabelStyle, _hudShortcutStyle
             };
             foreach (var style in styles)
             {
@@ -2271,6 +2318,7 @@ namespace StonewardsPartyHUD
             _buildDetailStyle.fontSize = 15;
             _buildHelpStyle.fontSize = 12;
             _settingsButtonStyle.fontSize = 18;
+            _hudActionLabelStyle.fontSize = 16;
             _hudShortcutStyle.fontSize = 13;
             Logger.LogInfo("Party HUD is using Stonewards UI font: " + _nativeUiFont.name);
         }
