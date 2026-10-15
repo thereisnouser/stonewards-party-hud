@@ -19,12 +19,13 @@ namespace StonewardsPartyHUD
         private const float RefreshSeconds = 0.2f;
         private const float PanelWidth = 278f;
         private const float HeaderHeight = 49f;
+        private const float PartyHeaderHeight = 90f;
         private const float RowHeight = 67f;
         private const float CompanionRowHeight = 38f;
         private const float WallRowHeight = 66f;
         private const float KingRowHeight = 66f;
-        // Reserve a footer for visible SETTINGS / BUILDS shortcuts.
-        private const float FooterPadding = 54f;
+        // Actions live inside the party header, leaving a minimal bottom margin.
+        private const float FooterPadding = 8f;
         private const float HudActionButtonWidth = 120f;
         private const float HudActionButtonHeight = 35f;
         private const float BuildWindowWidth = 348f;
@@ -1366,7 +1367,7 @@ namespace StonewardsPartyHUD
             if (repaint)
                 DrawTeammatePlayerNames();
 
-            float height = HeaderHeight + _players.Count * RowHeight + FooterPadding;
+            float height = PartyHeaderHeight + _players.Count * RowHeight + FooterPadding;
             if (_hasWall)
                 height += WallRowHeight;
             if (_hasKing)
@@ -1428,7 +1429,7 @@ namespace StonewardsPartyHUD
                 GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
                 if (repaint)
                     DrawPanel(x, y, height);
-                DrawHudActionButtons(x, y, height, scale, repaint, allowHudClicks);
+                DrawHudActionButtons(x, y, scale, repaint, allowHudClicks);
                 if (repaint && _showBuilds && Mirror.NetworkServer.active &&
                     Mirror.NetworkClient.active && _enableBuildInspector.Value)
                 {
@@ -1450,11 +1451,12 @@ namespace StonewardsPartyHUD
 
         private void DrawPanel(float x, float y, float height)
         {
-            DrawStonewardsWindow(x, y, PanelWidth, height);
-            // Keep the title and party counter vertically centered on the
-            // same header line; DOWN stays in the secondary row when needed.
-            GUI.Label(new Rect(x + 20f, y + 2f, PanelWidth - 40f, 29f),
-                "PARTY STATUS", _headingStyle);
+            DrawStonewardsWindow(x, y, PanelWidth, height, PartyHeaderHeight);
+            // The title and player count share the first header line.
+            // The second line contains the discoverable HUD actions.
+            GUI.Label(new Rect(x + 12f, y + 3f, PanelWidth - 106f, 30f),
+                FitText("PARTY STATUS", _headingStyle, PanelWidth - 106f),
+                _headingStyle);
 
             int downed = 0;
             for (int i = 0; i < _players.Count; i++)
@@ -1462,12 +1464,12 @@ namespace StonewardsPartyHUD
                     downed++;
 
             if (downed > 0)
-                GUI.Label(new Rect(x + 14f, y + 28f, 116f, 18f),
+                GUI.Label(new Rect(x + PanelWidth - 86f, y + 28f, 72f, 17f),
                     downed + " DOWN", _alertStyle);
-            GUI.Label(new Rect(x + PanelWidth - 80f, y + 2f, 66f, 29f),
+            GUI.Label(new Rect(x + PanelWidth - 80f, y + 3f, 66f, 29f),
                 _players.Count + " / 4", _countStyle);
 
-            float rowY = y + HeaderHeight;
+            float rowY = y + PartyHeaderHeight;
             for (int i = 0; i < _players.Count; i++)
             {
                 DrawPlayer(x, rowY, _players[i], i);
@@ -1487,10 +1489,10 @@ namespace StonewardsPartyHUD
                 DrawKingHealth(x, rowY);
         }
 
-        private void DrawHudActionButtons(float x, float y, float height,
+        private void DrawHudActionButtons(float x, float y,
             float scale, bool repaint, bool interactive)
         {
-            float buttonY = y + height - FooterPadding + 10f;
+            float buttonY = y + 47f;
             var settingsRect = new Rect(x + 14f, buttonY,
                 HudActionButtonWidth, HudActionButtonHeight);
             var buildsRect = new Rect(x + PanelWidth - 14f -
@@ -1505,8 +1507,6 @@ namespace StonewardsPartyHUD
 
             if (repaint)
             {
-                Fill(new Rect(x + 12f, buttonY - 6f,
-                    PanelWidth - 24f, 1f), PanelDivider);
                 DrawHudActionButton(settingsRect, "SETTINGS",
                     ShortcutLabel(_toggleSettingsShortcut.Value), false, true);
                 DrawHudActionButton(buildsRect, "BUILDS",
@@ -1956,14 +1956,15 @@ namespace StonewardsPartyHUD
             }
         }
 
-        private static void DrawStonewardsWindow(float x, float y, float width, float height)
+        private static void DrawStonewardsWindow(float x, float y,
+            float width, float height, float headerHeight = HeaderHeight)
         {
             // Pixel-stepped corners as in the game's own windows.
             // All geometry is generated at runtime; no game assets distributed.
             Fill(new Rect(x + 7f, y, width - 14f, height), PanelBackground);
             Fill(new Rect(x, y + 7f, width, height - 14f), PanelBackground);
-            Fill(new Rect(x + 7f, y + 2f, width - 14f, HeaderHeight - 2f), PanelHeader);
-            Fill(new Rect(x + 2f, y + 7f, width - 4f, HeaderHeight - 7f), PanelHeader);
+            Fill(new Rect(x + 7f, y + 2f, width - 14f, headerHeight - 2f), PanelHeader);
+            Fill(new Rect(x + 2f, y + 7f, width - 4f, headerHeight - 7f), PanelHeader);
 
             const float edge = 2f;
             Fill(new Rect(x + 8f, y, width - 16f, edge), PanelFrame);
@@ -1978,7 +1979,7 @@ namespace StonewardsPartyHUD
             Fill(new Rect(x + 2f, y + height - 7f, 3f, edge), PanelFrame);
             Fill(new Rect(x + width - 5f, y + height - 7f, 3f, edge), PanelFrame);
             Fill(new Rect(x + width - 8f, y + height - 4f, 3f, edge), PanelFrame);
-            Fill(new Rect(x + 2f, y + HeaderHeight - 1f, width - 4f, 1f), PanelFrame);
+            Fill(new Rect(x + 2f, y + headerHeight - 1f, width - 4f, 1f), PanelFrame);
         }
 
         private void DrawPlayer(float x, float rowY, PlayerEntry player, int index)
