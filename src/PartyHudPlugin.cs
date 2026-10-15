@@ -26,6 +26,8 @@ namespace StonewardsPartyHUD
         private const float BuildWindowHeight = 434f;
         private const float BuildRingRowHeight = 42f;
         private const int BuildRingsPerPage = 6;
+        private const float SettingsWidth = 500f;
+        private const float SettingsHeight = 540f;
         private const float BottomHudSafeZone = 132f;
         private const float NativeRosterHeaderSafeZone = 130f;
         private const float NativeRosterPlayerRowSafeZone = 42f;
@@ -63,6 +65,12 @@ namespace StonewardsPartyHUD
         private float _nextBuildRefresh;
         private int _buildPlayerIndex;
         private int _buildPage;
+        private bool _settingsOpen;
+        private int _settingsTab; // 0: display, 1: layout, 2: hotkeys
+        private int _capturingShortcut = -1;
+        private string _settingsNotice = "";
+        private CursorLockMode _previousCursorLock;
+        private bool _previousCursorVisible;
         // InventoryScreen does not inherit BaseMenu. Its UI Toolkit root
         // switches between DisplayStyle.Flex and None on opening/closing.
         private static readonly FieldInfo InventoryRootField =
@@ -103,6 +111,7 @@ namespace StonewardsPartyHUD
         private ConfigEntry<bool> _showWallHealth;
         private ConfigEntry<bool> _showHostPing;
         private ConfigEntry<bool> _enableBuildInspector;
+        private ConfigEntry<KeyboardShortcut> _toggleSettingsShortcut;
         private ConfigEntry<KeyboardShortcut> _toggleBuildInspectorShortcut;
         private ConfigEntry<KeyboardShortcut> _nextBuildPlayerShortcut;
         private ConfigEntry<KeyboardShortcut> _nextBuildPageShortcut;
@@ -142,6 +151,7 @@ namespace StonewardsPartyHUD
         private GUIStyle _buildNameStyle;
         private GUIStyle _buildDetailStyle;
         private GUIStyle _buildHelpStyle;
+        private GUIStyle _settingsButtonStyle;
         private Font _nativeUiFont;
         private float _nextNativeFontLookup;
 
@@ -213,6 +223,9 @@ namespace StonewardsPartyHUD
                 "On the hosting player's screen, show each remote player's real Mirror connection RTT in ms. Other clients never display unverified peer ping.");
             _enableBuildInspector = Config.Bind("BuildInspector", "Enabled", true,
                 "Allow the hosting player to inspect teammates' rings. Other players do not need the mod.");
+            _toggleSettingsShortcut = Config.Bind("Hotkeys", "ToggleSettings",
+                new KeyboardShortcut(KeyCode.F7),
+                "Open or close Party HUD's built-in settings menu in-game.");
             _toggleBuildInspectorShortcut = Config.Bind("Hotkeys", "ToggleBuildInspector",
                 new KeyboardShortcut(KeyCode.F8),
                 "Open or close the host-only build inspector. Supports key combinations with Ctrl, Shift and Alt.");
@@ -250,6 +263,24 @@ namespace StonewardsPartyHUD
 
         private void Update()
         {
+            bool gameMenuOpen = IsBlockingGameMenuOpen();
+            if (_settingsOpen && gameMenuOpen)
+                CloseSettings();
+            if (!gameMenuOpen && _capturingShortcut < 0 &&
+                _toggleSettingsShortcut.Value.IsDown())
+            {
+                if (_settingsOpen)
+                    CloseSettings();
+                else
+                    OpenSettings();
+            }
+            if (_settingsOpen)
+            {
+                // The game can lock the pointer again during Update.
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+
             if (!_enabled.Value)
             {
                 RemoveAllOutlines();
@@ -263,7 +294,7 @@ namespace StonewardsPartyHUD
                 Mirror.NetworkServer.active && Mirror.NetworkClient.active;
             if (!canInspect)
                 CloseBuildInspector();
-            else if (!IsBlockingGameMenuOpen())
+            else if (!gameMenuOpen && !_settingsOpen)
             {
                 if (_toggleBuildInspectorShortcut.Value.IsDown())
                 {
@@ -305,14 +336,37 @@ namespace StonewardsPartyHUD
 
         private void OnDisable()
         {
+            CloseSettings();
             RemoveAllOutlines();
             CloseBuildInspector();
         }
 
         private void OnDestroy()
         {
+            CloseSettings();
             RemoveAllOutlines();
             CloseBuildInspector();
+        }
+
+        private void OpenSettings()
+        {
+            _previousCursorLock = Cursor.lockState;
+            _previousCursorVisible = Cursor.visible;
+            _settingsOpen = true;
+            _capturingShortcut = -1;
+            _settingsNotice = "";
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+
+        private void CloseSettings()
+        {
+            if (!_settingsOpen)
+                return;
+            _settingsOpen = false;
+            _capturingShortcut = -1;
+            Cursor.lockState = _previousCursorLock;
+            Cursor.visible = _previousCursorVisible;
         }
 
         private void CloseBuildInspector()
@@ -1158,10 +1212,21 @@ namespace StonewardsPartyHUD
 
         private void OnGUI()
         {
+            if (Event.current == null || IsBlockingGameMenuOpen())
+                return;
+
+            // Real GUI controls need MouseDown/MouseUp/KeyDown/Layout events.
+            // Process settings on all IMGUI event types; the passive HUD still
+            // draws only on Repaint and never steals input.
+            if (_settingsOpen)
+            {
+                EnsureStyles();
+                DrawSettingsWindow();
+            }
+
             if (!_enabled.Value || _players.Count == 0 ||
                 !Mirror.NetworkClient.active ||
-                Event.current == null || Event.current.type != EventType.Repaint ||
-                IsBlockingGameMenuOpen())
+                Event.current.type != EventType.Repaint)
                 return;
 
             EnsureStyles();
@@ -1619,6 +1684,8 @@ namespace StonewardsPartyHUD
                     new Color(0.88f, 0.84f, 0.77f), TextAnchor.MiddleLeft, true);
                 _buildHelpStyle = MakeStyle(11,
                     new Color(0.93f, 0.84f, 0.69f), TextAnchor.MiddleLeft, true);
+                _settingsButtonStyle = MakeStyle(15,
+                    new Color(0.98f, 0.90f, 0.76f), TextAnchor.MiddleCenter, true);
             }
             TryApplyNativeFont();
         }
@@ -1648,7 +1715,8 @@ namespace StonewardsPartyHUD
                 _headingStyle, _countStyle, _nameStyle, _classStyle,
                 _badgeStyle, _healthStyle, _statusStyle, _companionStyle,
                 _alertStyle, _wallStatusStyle, _pingStyle,
-                _buildNameStyle, _buildDetailStyle, _buildHelpStyle
+                _buildNameStyle, _buildDetailStyle, _buildHelpStyle,
+                _settingsButtonStyle
             };
             foreach (var style in styles)
             {
@@ -1669,6 +1737,7 @@ namespace StonewardsPartyHUD
             _buildNameStyle.fontSize = 19;
             _buildDetailStyle.fontSize = 15;
             _buildHelpStyle.fontSize = 12;
+            _settingsButtonStyle.fontSize = 18;
             Logger.LogInfo("Party HUD is using Stonewards UI font: " + _nativeUiFont.name);
         }
 
