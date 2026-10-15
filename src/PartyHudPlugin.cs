@@ -5,6 +5,7 @@ using BepInEx;
 using BepInEx.Configuration;
 using UnityEngine;
 using UnityEngine.UIElements;
+using Cursor = UnityEngine.Cursor;
 
 namespace StonewardsPartyHUD
 {
