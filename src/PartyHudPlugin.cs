@@ -1574,9 +1574,6 @@ namespace StonewardsPartyHUD
             Fill(new Rect(area.x + 5f, area.y + area.height - 2f,
                 area.width - 10f, selected ? 2f : 1f),
                 enabled && (selected || hovered) ? HudButtonGold : PanelDivider);
-            if (selected && enabled)
-                Fill(new Rect(area.x + 2f, area.y + 3f,
-                    2f, area.height - 6f), HudButtonGold);
 
             _hudActionLabelStyle.normal.textColor =
                 !enabled ? HudButtonMuted
