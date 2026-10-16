@@ -19,7 +19,9 @@ namespace StonewardsPartyHUD
         private const float RefreshSeconds = 0.2f;
         private const float PanelWidth = 278f;
         private const float HeaderHeight = 49f;
-        private const float PartyHeaderHeight = 77f;
+        private const float PartyHeaderHeight = 70f;
+        // Keep the DOWN warning on its own line above the action hints.
+        private const float DownedHeaderExtraHeight = 9f;
         private const float RowHeight = 67f;
         private const float CompanionRowHeight = 38f;
         private const float WallRowHeight = 66f;
@@ -1380,7 +1382,14 @@ namespace StonewardsPartyHUD
             if (repaint)
                 DrawTeammatePlayerNames();
 
-            float height = PartyHeaderHeight + _players.Count * RowHeight + FooterPadding;
+            int downed = 0;
+            for (int i = 0; i < _players.Count; i++)
+                if (_players[i].IsDead)
+                    downed++;
+
+            float headerHeight = PartyHeaderHeight +
+                (downed > 0 ? DownedHeaderExtraHeight : 0f);
+            float height = headerHeight + _players.Count * RowHeight + FooterPadding;
             if (_hasWall)
                 height += WallRowHeight;
             if (_hasKing)
@@ -1443,8 +1452,8 @@ namespace StonewardsPartyHUD
             {
                 GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
                 if (repaint)
-                    DrawPanel(x, y, height);
-                DrawHudActionButtons(x, y, scale, repaint, allowHudClicks);
+                    DrawPanel(x, y, height, headerHeight, downed);
+                DrawHudActionButtons(x, y, scale, repaint, allowHudClicks, headerHeight);
                 if (repaint && _showBuilds && Mirror.NetworkServer.active &&
                     Mirror.NetworkClient.active && _enableBuildInspector.Value)
                 {
@@ -1464,19 +1473,15 @@ namespace StonewardsPartyHUD
             }
         }
 
-        private void DrawPanel(float x, float y, float height)
+        private void DrawPanel(float x, float y, float height,
+            float headerHeight, int downed)
         {
-            DrawStonewardsWindow(x, y, PanelWidth, height, PartyHeaderHeight);
+            DrawStonewardsWindow(x, y, PanelWidth, height, headerHeight);
             // The title and player count share the first header line.
             // The second line contains the discoverable HUD actions.
             GUI.Label(new Rect(x + 12f, y + 3f, PanelWidth - 106f, 30f),
                 FitText("PARTY STATUS", _headingStyle, PanelWidth - 106f),
                 _headingStyle);
-
-            int downed = 0;
-            for (int i = 0; i < _players.Count; i++)
-                if (_players[i].IsDead)
-                    downed++;
 
             if (downed > 0)
                 GUI.Label(new Rect(x + PanelWidth - 86f, y + 28f, 72f, 17f),
@@ -1484,7 +1489,7 @@ namespace StonewardsPartyHUD
             GUI.Label(new Rect(x + PanelWidth - 80f, y + 3f, 66f, 29f),
                 _players.Count + " / 4", _countStyle);
 
-            float rowY = y + PartyHeaderHeight;
+            float rowY = y + headerHeight;
             for (int i = 0; i < _players.Count; i++)
             {
                 DrawPlayer(x, rowY, _players[i], i);
@@ -1505,9 +1510,9 @@ namespace StonewardsPartyHUD
         }
 
         private void DrawHudActionButtons(float x, float y,
-            float scale, bool repaint, bool interactive)
+            float scale, bool repaint, bool interactive, float headerHeight)
         {
-            float buttonY = y + 46f;
+            float buttonY = y + headerHeight - HudActionButtonHeight - 8f;
             var settingsRect = new Rect(x + 14f, buttonY,
                 HudActionButtonWidth, HudActionButtonHeight);
             var buildsRect = new Rect(x + PanelWidth - 14f -
@@ -1526,7 +1531,7 @@ namespace StonewardsPartyHUD
                 // must only show while the game has released the mouse.
                 Vector2 hoverPointer = Event.current.mousePosition / scale;
                 DrawHudActionButton(settingsRect, "SETTINGS",
-                    ShortcutLabel(_toggleSettingsShortcut.Value), false, true,
+                    ShortcutLabel(_toggleSettingsShortcut.Value), _settingsOpen, true,
                     interactive && settingsRect.Contains(hoverPointer));
                 DrawHudActionButton(buildsRect, "BUILDS",
                     buildsShortcut, _showBuilds, canInspect,
@@ -1562,16 +1567,20 @@ namespace StonewardsPartyHUD
             Color fill = !enabled ? HudButtonDisabled
                 : selected ? HudButtonActive
                 : hovered ? HudButtonHover : HudButtonFill;
-            float alpha = selected ? 0.65f : hovered ? 0.35f : 0.14f;
+            float alpha = selected ? 0.93f : hovered ? 0.35f : 0.14f;
             Fill(new Rect(area.x + 2f, area.y + 1f,
                 area.width - 4f, area.height - 3f),
                 new Color(fill.r, fill.g, fill.b, alpha));
             Fill(new Rect(area.x + 5f, area.y + area.height - 2f,
-                area.width - 10f, 1f),
+                area.width - 10f, selected ? 2f : 1f),
                 enabled && (selected || hovered) ? HudButtonGold : PanelDivider);
+            if (selected && enabled)
+                Fill(new Rect(area.x + 2f, area.y + 3f,
+                    2f, area.height - 6f), HudButtonGold);
 
             _hudActionLabelStyle.normal.textColor =
-                enabled ? HudButtonText : HudButtonMuted;
+                !enabled ? HudButtonMuted
+                    : selected ? HudButtonGold : HudButtonText;
             _hudShortcutStyle.normal.textColor =
                 enabled ? HudButtonGold : HudButtonMuted;
             const float captionWidth = 61f;
