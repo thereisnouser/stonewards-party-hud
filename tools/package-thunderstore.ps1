@@ -13,8 +13,9 @@ if (-not $OutputDir) { $OutputDir = Join-Path $repo 'dist' }
 $manifest = Join-Path $repo 'packaging\manifest.json'
 $icon = Join-Path $repo 'packaging\icon.png'
 $readme = Join-Path $repo 'README.md'
+$changelog = Join-Path $repo 'CHANGELOG.md'
 $license = Join-Path $repo 'LICENSE'
-foreach ($required in @($manifest, $icon, $readme, $license, $PluginDll)) {
+foreach ($required in @($manifest, $icon, $readme, $changelog, $license, $PluginDll)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "Required package file is missing: $required"
     }
@@ -35,9 +36,21 @@ $sourceVersion = $Matches[1]
 if ($sourceVersion -ne $meta.version_number) {
     throw "Source version $sourceVersion does not match Thunderstore manifest $($meta.version_number)."
 }
+# Every upload needs a changelog entry for exactly this package version.
+$escapedVersion = [regex]::Escape($sourceVersion)
+$changelogText = Get-Content -LiteralPath $changelog -Raw
+if ($changelogText -notmatch "(?m)^##\s+$escapedVersion\s*$") {
+    throw "CHANGELOG.md is missing an entry for version $sourceVersion."
+}
+
+# Check every C# file and the project definition, not only the plugin entry
+# point. KingHealthReader.cs and future helpers are compiled into the DLL.
+$buildInputs = @(Get-ChildItem -LiteralPath (Join-Path $repo 'src') -Filter '*.cs' -File)
+$buildInputs += Get-Item -LiteralPath (Join-Path $repo 'StonewardsPartyHUD.csproj')
+$latestInput = $buildInputs | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
 $builtDll = Get-Item -LiteralPath $PluginDll
-if ($builtDll.LastWriteTimeUtc -lt (Get-Item -LiteralPath $source).LastWriteTimeUtc) {
-    throw "The compiled DLL is older than the current source. Rebuild before packaging: $PluginDll"
+if ($builtDll.LastWriteTimeUtc -lt $latestInput.LastWriteTimeUtc) {
+    throw "Compiled DLL is older than $($latestInput.FullName). Rebuild before packaging."
 }
 # The public PluginVersion constant is embedded in .NET metadata as ASCII.
 $dllMetadata = [System.Text.Encoding]::ASCII.GetString(
@@ -74,6 +87,7 @@ $files = @(
     @{ Source = $manifest; Entry = 'manifest.json' }
     @{ Source = $icon; Entry = 'icon.png' }
     @{ Source = $readme; Entry = 'README.md' }
+    @{ Source = $changelog; Entry = 'CHANGELOG.md' }
     @{ Source = $license; Entry = 'LICENSE' }
     @{ Source = $PluginDll; Entry = 'plugins/StonewardsPartyHUD.dll' }
 )
