@@ -1524,13 +1524,13 @@ namespace StonewardsPartyHUD
             {
                 // IMGUI coordinates are scaled with the panel. Hover feedback
                 // must only show while the game has released the mouse.
-                Vector2 pointer = Event.current.mousePosition / scale;
+                Vector2 hoverPointer = Event.current.mousePosition / scale;
                 DrawHudActionButton(settingsRect, "SETTINGS",
                     ShortcutLabel(_toggleSettingsShortcut.Value), false, true,
-                    interactive && settingsRect.Contains(pointer));
+                    interactive && settingsRect.Contains(hoverPointer));
                 DrawHudActionButton(buildsRect, "BUILDS",
                     buildsShortcut, _showBuilds, canInspect,
-                    interactive && canInspect && buildsRect.Contains(pointer));
+                    interactive && canInspect && buildsRect.Contains(hoverPointer));
             }
 
             // The passive HUD never registers IMGUI controls, which could
