@@ -57,7 +57,7 @@ The packing script creates a ZIP only; it does not publish or tag releases. Thun
 
 ## Current status and in-game menu test checklist
 
-The v0.3.2 source contains a built-in **F7** settings menu with three tabs: **DISPLAY**, **LAYOUT**, and **HOTKEYS**. Its five shortcuts use BepInEx `KeyboardShortcut` values and are persisted in the active profile config. The user confirmed the earlier menu buttons and tabs work in-game. The subsequent compact-header and offset-control changes are **not yet gameplay-tested**. Do not publish a new Thunderstore package based only on source inspection.
+The v0.3.2 source contains a built-in **F7** settings menu with three tabs: **DISPLAY**, **LAYOUT**, and **HOTKEYS**. Its five shortcuts use BepInEx `KeyboardShortcut` values and are persisted in the active profile config. The user confirmed button functionality, supplied in-game screenshots and approved the latest native-style slider appearance. **A fresh installation of the packaged release and the full multiplayer checklist remain unverified.** Do not publish the new Thunderstore package based solely on visual approval.
 
 Use a separate r2modman testing profile with its own BepInExPack and **disable the installed Thunderstore PartyHUD package in that profile**. Build with `-ProfileDir`, then launch that exact profile via **Start modded**. Never test by overwriting the regular playing profile.
 
