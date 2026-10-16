@@ -178,6 +178,9 @@ namespace StonewardsPartyHUD
         private GUIStyle _buildDetailStyle;
         private GUIStyle _buildHelpStyle;
         private GUIStyle _settingsButtonStyle;
+        private GUIStyle _settingsValueStyle;
+        private GUIStyle _settingsSliderTrackStyle;
+        private GUIStyle _settingsSliderThumbStyle;
         private GUIStyle _hudActionLabelStyle;
         private GUIStyle _hudShortcutStyle;
         private Font _nativeUiFont;
@@ -1727,6 +1730,40 @@ namespace StonewardsPartyHUD
                 "Allow the host to inspect teammates' selected rings.");
         }
 
+        // Retain IMGUI slider interactions with custom Stonewards-inspired
+        // slate-and-gold visuals, instead of Unity's stock dark thin track.
+        private float SettingsStyledSlider(Rect area, float value,
+            float min, float max)
+        {
+            float chosen = GUI.HorizontalSlider(area, Mathf.Clamp(value, min, max),
+                min, max, _settingsSliderTrackStyle, _settingsSliderThumbStyle);
+            if (Event.current.type != EventType.Repaint)
+                return chosen;
+
+            const float thumbWidth = 17f;
+            const float railHeight = 10f;
+            float fraction = Mathf.InverseLerp(min, max, chosen);
+            float railY = area.y + (area.height - railHeight) * 0.5f;
+            float thumbX = area.x + (area.width - thumbWidth) * fraction;
+
+            Fill(new Rect(area.x, railY, area.width, railHeight), PanelFrame);
+            Fill(new Rect(area.x + 1f, railY + 1f,
+                area.width - 2f, railHeight - 2f), BarTrack);
+            float fillWidth = Mathf.Clamp(thumbX + thumbWidth * 0.5f -
+                area.x - 2f, 0f, area.width - 4f);
+            if (fillWidth > 0f)
+                Fill(new Rect(area.x + 2f, railY + 2f,
+                    fillWidth, railHeight - 4f),
+                    new Color(0.70f, 0.56f, 0.35f));
+
+            Fill(new Rect(thumbX, area.y, thumbWidth, area.height), PanelFrame);
+            Fill(new Rect(thumbX + 2f, area.y + 2f,
+                thumbWidth - 4f, area.height - 4f), SlotBackground);
+            Fill(new Rect(thumbX + 6f, area.y + 4f,
+                5f, area.height - 8f), HudButtonGold);
+            return chosen;
+        }
+
         private void SettingsSlider(float x, float rowY, string title,
             float value, float min, float max, Action<float> setValue,
             string displayedValue)
@@ -1735,9 +1772,9 @@ namespace StonewardsPartyHUD
                 title, _buildNameStyle);
             GUI.Label(new Rect(x + 370f, rowY, 100f, 27f),
                 displayedValue, _healthStyle);
-            float chosen = GUI.HorizontalSlider(
+            float chosen = SettingsStyledSlider(
                 new Rect(x + 28f, rowY + 29f, SettingsWidth - 56f, 20f),
-                Mathf.Clamp(value, min, max), min, max);
+                value, min, max);
             if (Mathf.Abs(chosen - value) > 0.001f)
             {
                 setValue(chosen);
@@ -1760,20 +1797,21 @@ namespace StonewardsPartyHUD
 
             GUI.Label(new Rect(x + 23f, rowY, 278f, 27f),
                 title, _buildNameStyle);
-            if (SettingsButton(new Rect(x + 342f, rowY + 1f, 28f, 24f), "-"))
+            if (SettingsButton(new Rect(x + 356f, rowY + 1f, 28f, 24f), "-"))
             {
                 desired = displayed - 1;
                 changed = true;
             }
-            GUI.Label(new Rect(x + 375f, rowY, 65f, 27f),
-                option.Value + " px", _healthStyle);
+            GUI.Label(new Rect(x + 388f, rowY, 55f, 27f),
+                FitText(option.Value + " px", _settingsValueStyle, 55f),
+                _settingsValueStyle);
             if (SettingsButton(new Rect(x + 447f, rowY + 1f, 28f, 24f), "+"))
             {
                 desired = displayed + 1;
                 changed = true;
             }
 
-            int chosen = Mathf.RoundToInt(GUI.HorizontalSlider(
+            int chosen = Mathf.RoundToInt(SettingsStyledSlider(
                 new Rect(x + 28f, rowY + 29f, SettingsWidth - 56f, 20f),
                 displayed, 0f, Mathf.Max(1, maxOffset)));
             if (chosen != displayed)
@@ -2315,6 +2353,19 @@ namespace StonewardsPartyHUD
                     new Color(0.93f, 0.84f, 0.69f), TextAnchor.MiddleLeft, true);
                 _settingsButtonStyle = MakeStyle(15,
                     new Color(0.98f, 0.90f, 0.76f), TextAnchor.MiddleCenter, true);
+                _settingsValueStyle = MakeStyle(13, Color.white,
+                    TextAnchor.MiddleCenter, true);
+                // Only visuals are overridden: GUI.HorizontalSlider continues
+                // to own pointer dragging and keyboard/mouse state.
+                _settingsSliderTrackStyle = new GUIStyle(GUIStyle.none)
+                {
+                    fixedHeight = 20f
+                };
+                _settingsSliderThumbStyle = new GUIStyle(GUIStyle.none)
+                {
+                    fixedWidth = 17f,
+                    fixedHeight = 20f
+                };
                 _hudActionLabelStyle = MakeStyle(14,
                     HudButtonText, TextAnchor.MiddleCenter, true);
                 _hudShortcutStyle = MakeStyle(11,
@@ -2349,7 +2400,8 @@ namespace StonewardsPartyHUD
                 _badgeStyle, _healthStyle, _statusStyle, _companionStyle,
                 _alertStyle, _wallStatusStyle, _pingStyle,
                 _buildNameStyle, _buildDetailStyle, _buildHelpStyle,
-                _settingsButtonStyle, _hudActionLabelStyle, _hudShortcutStyle
+                _settingsButtonStyle, _settingsValueStyle,
+                _hudActionLabelStyle, _hudShortcutStyle
             };
             foreach (var style in styles)
             {
@@ -2371,6 +2423,7 @@ namespace StonewardsPartyHUD
             _buildDetailStyle.fontSize = 15;
             _buildHelpStyle.fontSize = 12;
             _settingsButtonStyle.fontSize = 18;
+            _settingsValueStyle.fontSize = 16;
             _hudActionLabelStyle.fontSize = 16;
             _hudShortcutStyle.fontSize = 13;
             Logger.LogInfo("Party HUD is using Stonewards UI font: " + _nativeUiFont.name);
