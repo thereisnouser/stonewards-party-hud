@@ -51,4 +51,4 @@ For example, `ToggleSettings = B + LeftControl` uses **Ctrl+B**. Restart the gam
 
 ## Links
 
-[Issues & feedback](https://github.com/thereisnouser/stonewards-party-hud/issues) · [Developer setup](https://github.com/thereisnouser/stonewards-party-hud/blob/main/docs/DEVELOPMENT.md) · [MIT License](https://github.com/thereisnouser/stonewards-party-hud/blob/main/LICENSE)
+[Changelog](https://github.com/thereisnouser/stonewards-party-hud/blob/main/CHANGELOG.md) · [Issues & feedback](https://github.com/thereisnouser/stonewards-party-hud/issues) · [Developer setup](https://github.com/thereisnouser/stonewards-party-hud/blob/main/docs/DEVELOPMENT.md) · [MIT License](https://github.com/thereisnouser/stonewards-party-hud/blob/main/LICENSE)
