@@ -19,7 +19,7 @@ namespace StonewardsPartyHUD
         private const float RefreshSeconds = 0.2f;
         private const float PanelWidth = 278f;
         private const float HeaderHeight = 49f;
-        private const float PartyHeaderHeight = 90f;
+        private const float PartyHeaderHeight = 77f;
         private const float RowHeight = 67f;
         private const float CompanionRowHeight = 38f;
         private const float WallRowHeight = 66f;
@@ -27,7 +27,7 @@ namespace StonewardsPartyHUD
         // Actions live inside the party header, leaving a minimal bottom margin.
         private const float FooterPadding = 8f;
         private const float HudActionButtonWidth = 120f;
-        private const float HudActionButtonHeight = 35f;
+        private const float HudActionButtonHeight = 23f;
         private const float BuildWindowWidth = 348f;
         private const float BuildWindowHeight = 434f;
         private const float BuildRingRowHeight = 42f;
@@ -144,6 +144,9 @@ namespace StonewardsPartyHUD
         private ConfigEntry<int> _topOffset;
         private ConfigEntry<int> _bottomOffset;
         private ConfigEntry<PanelAnchor> _anchor;
+        // Physical panel dimensions are used to bound offset sliders to the screen.
+        private float _hudRenderedWidthPx;
+        private float _hudRenderedHeightPx;
         private float _nextRefresh;
         private float _nextWallRefresh;
         private bool _hasWall;
@@ -1423,6 +1426,8 @@ namespace StonewardsPartyHUD
             if (scale <= 0f)
                 return;
 
+            _hudRenderedWidthPx = PanelWidth * scale;
+            _hudRenderedHeightPx = height * scale;
             float screenWidth = Screen.width / scale;
             float screenHeight = Screen.height / scale;
             float x = Mathf.Clamp(Mathf.Max(0f, _leftOffset.Value) / scale,
@@ -1504,7 +1509,7 @@ namespace StonewardsPartyHUD
         private void DrawHudActionButtons(float x, float y,
             float scale, bool repaint, bool interactive)
         {
-            float buttonY = y + 47f;
+            float buttonY = y + 46f;
             var settingsRect = new Rect(x + 14f, buttonY,
                 HudActionButtonWidth, HudActionButtonHeight);
             var buildsRect = new Rect(x + PanelWidth - 14f -
@@ -1554,44 +1559,32 @@ namespace StonewardsPartyHUD
         private void DrawHudActionButton(Rect area, string caption,
             string shortcut, bool selected, bool enabled, bool hovered)
         {
+            // Light inline action hints keep the header readable. They retain
+            // their full mouse hit areas when the game's cursor is released.
             Color fill = !enabled ? HudButtonDisabled
                 : selected ? HudButtonActive
                 : hovered ? HudButtonHover : HudButtonFill;
-            Color outline = !enabled ? PanelDivider
-                : selected || hovered ? HudButtonGold : HudButtonOutline;
-
-            // Pixel-stepped corners echo the native Stonewards panel frame.
-            // Unlike the old flat button, all four sides have a 2px border.
-            Fill(new Rect(area.x + 3f, area.y, area.width - 6f,
-                area.height), fill);
-            Fill(new Rect(area.x, area.y + 3f, area.width,
-                area.height - 6f), fill);
-            const float edge = 2f;
-            Fill(new Rect(area.x + 4f, area.y,
-                area.width - 8f, edge), outline);
-            Fill(new Rect(area.x + 4f, area.y + area.height - edge,
-                area.width - 8f, edge), outline);
-            Fill(new Rect(area.x, area.y + 4f,
-                edge, area.height - 8f), outline);
-            Fill(new Rect(area.x + area.width - edge, area.y + 4f,
-                edge, area.height - 8f), outline);
-            Fill(new Rect(area.x + 2f, area.y + 2f, edge, edge), outline);
-            Fill(new Rect(area.x + area.width - 4f, area.y + 2f,
-                edge, edge), outline);
-            Fill(new Rect(area.x + 2f, area.y + area.height - 4f,
-                edge, edge), outline);
-            Fill(new Rect(area.x + area.width - 4f,
-                area.y + area.height - 4f, edge, edge), outline);
+            float alpha = selected ? 0.65f : hovered ? 0.35f : 0.14f;
+            Fill(new Rect(area.x + 2f, area.y + 1f,
+                area.width - 4f, area.height - 3f),
+                new Color(fill.r, fill.g, fill.b, alpha));
+            Fill(new Rect(area.x + 5f, area.y + area.height - 2f,
+                area.width - 10f, 1f),
+                enabled && (selected || hovered) ? HudButtonGold : PanelDivider);
 
             _hudActionLabelStyle.normal.textColor =
                 enabled ? HudButtonText : HudButtonMuted;
             _hudShortcutStyle.normal.textColor =
                 enabled ? HudButtonGold : HudButtonMuted;
-            GUI.Label(new Rect(area.x + 4f, area.y + 1f,
-                area.width - 8f, 19f), caption, _hudActionLabelStyle);
-            GUI.Label(new Rect(area.x + 4f, area.y + 19f,
-                area.width - 8f, 15f),
-                FitText(shortcut, _hudShortcutStyle, area.width - 8f),
+            const float captionWidth = 61f;
+            const float shortcutWidth = HudActionButtonWidth - captionWidth - 11f;
+            GUI.Label(new Rect(area.x + 3f, area.y + 1f,
+                captionWidth, area.height - 2f),
+                FitText(caption, _hudActionLabelStyle, captionWidth),
+                _hudActionLabelStyle);
+            GUI.Label(new Rect(area.x + captionWidth + 5f, area.y + 1f,
+                shortcutWidth, area.height - 2f),
+                FitText(shortcut, _hudShortcutStyle, shortcutWidth),
                 _hudShortcutStyle);
         }
 
@@ -1658,11 +1651,13 @@ namespace StonewardsPartyHUD
 
                 Fill(new Rect(x + 14f, y + SettingsHeight - 39f,
                     SettingsWidth - 28f, 1f), PanelDivider);
-                string footer = !string.IsNullOrEmpty(_settingsNotice)
-                    ? _settingsNotice
-                    : _capturingShortcut >= 0
-                        ? "PRESS A KEY + MODIFIERS. ESC TO CANCEL."
-                        : "CHANGES ARE SAVED TO YOUR BEPINEX CONFIG.";
+                string footer = _settingsTab == 0 && !string.IsNullOrEmpty(GUI.tooltip)
+                    ? GUI.tooltip
+                    : !string.IsNullOrEmpty(_settingsNotice)
+                        ? _settingsNotice
+                        : _capturingShortcut >= 0
+                            ? "PRESS A KEY + MODIFIERS. ESC TO CANCEL."
+                            : "CHANGES ARE SAVED TO YOUR BEPINEX CONFIG.";
                 GUI.Label(new Rect(x + 20f, y + SettingsHeight - 32f,
                     SettingsWidth - 40f, 24f),
                     FitText(footer, _buildHelpStyle, SettingsWidth - 40f),
@@ -1676,23 +1671,24 @@ namespace StonewardsPartyHUD
             }
         }
 
-        private bool SettingsButton(Rect area, string text, bool active = false)
+        private bool SettingsButton(Rect area, string text, bool active = false,
+            string tooltip = null)
         {
             Fill(area, active ? PanelHeader : SlotBackground);
             Fill(new Rect(area.x, area.y, area.width, 1f), PanelFrame);
             Fill(new Rect(area.x, area.y + area.height - 1f,
                 area.width, 1f), PanelFrame);
-            return GUI.Button(area, text, _settingsButtonStyle);
+            return GUI.Button(area, new GUIContent(text, tooltip), _settingsButtonStyle);
         }
 
         private void SettingsToggle(float x, float rowY, string title,
-            ConfigEntry<bool> option)
+            ConfigEntry<bool> option, string tooltip = null)
         {
             GUI.Label(new Rect(x + 23f, rowY, 330f, 31f),
-                title, _buildNameStyle);
+                new GUIContent(title, tooltip), _buildNameStyle);
             bool enabled = option.Value;
             if (SettingsButton(new Rect(x + SettingsWidth - 105f, rowY,
-                82f, 30f), enabled ? "ON" : "OFF", enabled))
+                82f, 30f), enabled ? "ON" : "OFF", enabled, tooltip))
             {
                 option.Value = !enabled;
                 Config.Save();
@@ -1706,16 +1702,25 @@ namespace StonewardsPartyHUD
         {
             GUI.Label(new Rect(x + 23f, y + 104f,
                 SettingsWidth - 46f, 27f),
-                "SHOW OR HIDE HUD FEATURES", _buildDetailStyle);
-            SettingsToggle(x, y + 139f, "Party HUD", _enabled);
-            SettingsToggle(x, y + 176f, "Teammate outlines", _showTeammateOutlines);
-            SettingsToggle(x, y + 213f, "Teammate nicknames", _showPlayerNames);
-            SettingsToggle(x, y + 250f, "Outlines through walls", _outlinesThroughWalls);
-            SettingsToggle(x, y + 287f, "Host ping", _showHostPing);
-            SettingsToggle(x, y + 324f, "Hunter companion health", _showCompanionHealth);
-            SettingsToggle(x, y + 361f, "Wall health", _showWallHealth);
-            SettingsToggle(x, y + 398f, "King health", _showKingHealth);
-            SettingsToggle(x, y + 435f, "Host build inspector", _enableBuildInspector);
+                "HOVER OVER OPTIONS FOR MORE DETAILS", _buildDetailStyle);
+            SettingsToggle(x, y + 139f, "Party HUD", _enabled,
+                "Show or hide the team status panel.");
+            SettingsToggle(x, y + 176f, "Teammate outlines", _showTeammateOutlines,
+                "Highlight teammates directly in the game world.");
+            SettingsToggle(x, y + 213f, "Teammate nicknames", _showPlayerNames,
+                "Display teammate names above their characters.");
+            SettingsToggle(x, y + 250f, "Outlines through walls", _outlinesThroughWalls,
+                "Keep teammate outlines visible through obstacles.");
+            SettingsToggle(x, y + 287f, "Host ping", _showHostPing,
+                "Show connection latency for teammates on the host's HUD.");
+            SettingsToggle(x, y + 324f, "Hunter companion health", _showCompanionHealth,
+                "Display the Hunter bear's current health.");
+            SettingsToggle(x, y + 361f, "Wall health", _showWallHealth,
+                "Display the durability of defensive walls.");
+            SettingsToggle(x, y + 398f, "King health", _showKingHealth,
+                "Display the King's current health when available.");
+            SettingsToggle(x, y + 435f, "Host build inspector", _enableBuildInspector,
+                "Allow the host to inspect teammates' selected rings.");
         }
 
         private void SettingsSlider(float x, float rowY, string title,
@@ -1736,6 +1741,41 @@ namespace StonewardsPartyHUD
             }
         }
 
+        private void SettingsOffset(float x, float rowY, string title,
+            ConfigEntry<int> option, bool horizontal)
+        {
+            // Use actual rendered HUD dimensions, not a fixed 460px limit.
+            // A missing panel (for example in the main menu) is allowed a
+            // full-screen range; gameplay always clamps the HUD onscreen.
+            float visiblePanel = horizontal ? _hudRenderedWidthPx : _hudRenderedHeightPx;
+            float screenSize = horizontal ? Screen.width : Screen.height;
+            int maxOffset = Mathf.Max(0, Mathf.FloorToInt(screenSize - visiblePanel));
+            int displayed = Mathf.Clamp(option.Value, 0, maxOffset);
+            int desired = option.Value;
+
+            GUI.Label(new Rect(x + 23f, rowY, 278f, 27f),
+                title, _buildNameStyle);
+            if (SettingsButton(new Rect(x + 342f, rowY + 1f, 28f, 24f), "-"))
+                desired = displayed - 1;
+            GUI.Label(new Rect(x + 375f, rowY, 65f, 27f),
+                option.Value + " px", _healthStyle);
+            if (SettingsButton(new Rect(x + 447f, rowY + 1f, 28f, 24f), "+"))
+                desired = displayed + 1;
+
+            int chosen = Mathf.RoundToInt(GUI.HorizontalSlider(
+                new Rect(x + 28f, rowY + 29f, SettingsWidth - 56f, 20f),
+                displayed, 0f, Mathf.Max(1, maxOffset)));
+            if (chosen != displayed)
+                desired = chosen;
+            desired = Mathf.Clamp(desired, 0, maxOffset);
+            if (desired != option.Value)
+            {
+                option.Value = desired;
+                Config.Save();
+                _settingsNotice = title.ToUpperInvariant() + " SAVED";
+            }
+        }
+
         private void DrawLayoutSettings(float x, float y)
         {
             GUI.Label(new Rect(x + 23f, y + 104f,
@@ -1745,16 +1785,10 @@ namespace StonewardsPartyHUD
                 _scale.Value, 0.65f, 1.8f,
                 value => _scale.Value = (float)Math.Round(value, 2),
                 Mathf.RoundToInt(_scale.Value * 100f) + "%");
-            SettingsSlider(x, y + 213f, "Horizontal offset",
-                _leftOffset.Value, 0f, 460f,
-                value => _leftOffset.Value = Mathf.RoundToInt(value),
-                _leftOffset.Value + " px");
+            SettingsOffset(x, y + 213f, "Horizontal offset", _leftOffset, true);
             ConfigEntry<int> verticalOffset = _anchor.Value == PanelAnchor.TopLeft
                 ? _topOffset : _bottomOffset;
-            SettingsSlider(x, y + 287f, "Vertical offset",
-                verticalOffset.Value, 0f, 460f,
-                value => verticalOffset.Value = Mathf.RoundToInt(value),
-                verticalOffset.Value + " px");
+            SettingsOffset(x, y + 287f, "Vertical offset", verticalOffset, false);
             GUI.Label(new Rect(x + 23f, y + 362f, 165f, 27f),
                 "Panel anchor", _buildNameStyle);
             if (SettingsButton(new Rect(x + 217f, y + 360f, 118f, 31f),
