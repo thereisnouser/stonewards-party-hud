@@ -50,14 +50,12 @@ namespace StonewardsPartyHUD
         private static readonly Color SlotBackground = new Color(0.25f, 0.32f, 0.38f);
         private static readonly Color BarTrack = new Color(0.16f, 0.18f, 0.20f, 1f);
 
-        // In-game button palette: graphite fill, a warmer outline and
-        // light text. Keep these distinct from the party-status bars.
+        // Low-contrast action hint palette, distinct from the health bars.
         private static readonly Color HudButtonFill = new Color(55f / 255f, 59f / 255f, 69f / 255f);
         private static readonly Color HudButtonHover = new Color(70f / 255f, 75f / 255f, 87f / 255f);
         private static readonly Color HudButtonActive = new Color(79f / 255f, 57f / 255f, 61f / 255f);
         private static readonly Color HudButtonDisabled = new Color(34f / 255f, 36f / 255f, 41f / 255f);
         private static readonly Color HudButtonGold = new Color(240f / 255f, 200f / 255f, 94f / 255f);
-        private static readonly Color HudButtonOutline = new Color(178f / 255f, 153f / 255f, 95f / 255f);
         private static readonly Color HudButtonText = new Color(242f / 255f, 242f / 255f, 242f / 255f);
         private static readonly Color HudButtonMuted = new Color(169f / 255f, 174f / 255f, 183f / 255f);
 
@@ -1751,28 +1749,43 @@ namespace StonewardsPartyHUD
             float screenSize = horizontal ? Screen.width : Screen.height;
             int maxOffset = Mathf.Max(0, Mathf.FloorToInt(screenSize - visiblePanel));
             int displayed = Mathf.Clamp(option.Value, 0, maxOffset);
-            int desired = option.Value;
+            int desired = displayed;
+            bool changed = false;
 
             GUI.Label(new Rect(x + 23f, rowY, 278f, 27f),
                 title, _buildNameStyle);
             if (SettingsButton(new Rect(x + 342f, rowY + 1f, 28f, 24f), "-"))
+            {
                 desired = displayed - 1;
+                changed = true;
+            }
             GUI.Label(new Rect(x + 375f, rowY, 65f, 27f),
                 option.Value + " px", _healthStyle);
             if (SettingsButton(new Rect(x + 447f, rowY + 1f, 28f, 24f), "+"))
+            {
                 desired = displayed + 1;
+                changed = true;
+            }
 
             int chosen = Mathf.RoundToInt(GUI.HorizontalSlider(
                 new Rect(x + 28f, rowY + 29f, SettingsWidth - 56f, 20f),
                 displayed, 0f, Mathf.Max(1, maxOffset)));
             if (chosen != displayed)
-                desired = chosen;
-            desired = Mathf.Clamp(desired, 0, maxOffset);
-            if (desired != option.Value)
             {
-                option.Value = desired;
-                Config.Save();
-                _settingsNotice = title.ToUpperInvariant() + " SAVED";
+                desired = chosen;
+                changed = true;
+            }
+            // Keep custom offsets unchanged when the screen is resized.
+            // Clamp and save only after the user explicitly changes a value.
+            if (changed)
+            {
+                desired = Mathf.Clamp(desired, 0, maxOffset);
+                if (desired != option.Value)
+                {
+                    option.Value = desired;
+                    Config.Save();
+                    _settingsNotice = title.ToUpperInvariant() + " SAVED";
+                }
             }
         }
 
