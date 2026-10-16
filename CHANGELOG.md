@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.2
+## 0.4.0
 
 ### Added
 - Built-in **Party HUD Settings** menu with **DISPLAY**, **LAYOUT**, and **HOTKEYS** tabs (F7 by default).
