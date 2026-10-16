@@ -51,6 +51,18 @@ namespace StonewardsPartyHUD
         private static readonly Color PanelDivider = new Color(0.71f, 0.63f, 0.48f, 0.38f);
         private static readonly Color SlotBackground = new Color(0.25f, 0.32f, 0.38f);
         private static readonly Color BarTrack = new Color(0.16f, 0.18f, 0.20f, 1f);
+        // Sampled from Stonewards' native settings rows, slider track,
+        // rectangular slider grip and light numeric value field.
+        private static readonly Color SettingsRowFill =
+            new Color(57f / 255f, 61f / 255f, 70f / 255f);
+        private static readonly Color SettingsTrackFill =
+            new Color(127f / 255f, 128f / 255f, 131f / 255f);
+        private static readonly Color SettingsLightFill =
+            new Color(188f / 255f, 188f / 255f, 190f / 255f);
+        private static readonly Color SettingsGripFill =
+            new Color(238f / 255f, 238f / 255f, 238f / 255f);
+        private static readonly Color SettingsDarkText =
+            new Color(19f / 255f, 23f / 255f, 32f / 255f);
 
         // Low-contrast action hint palette, distinct from the health bars.
         private static readonly Color HudButtonFill = new Color(55f / 255f, 59f / 255f, 69f / 255f);
@@ -179,6 +191,7 @@ namespace StonewardsPartyHUD
         private GUIStyle _buildHelpStyle;
         private GUIStyle _settingsButtonStyle;
         private GUIStyle _settingsValueStyle;
+        private GUIStyle _settingsStepStyle;
         private GUIStyle _settingsSliderTrackStyle;
         private GUIStyle _settingsSliderThumbStyle;
         private GUIStyle _hudActionLabelStyle;
@@ -1730,50 +1743,55 @@ namespace StonewardsPartyHUD
                 "Allow the host to inspect teammates' selected rings.");
         }
 
-        // Retain IMGUI slider interactions with custom Stonewards-inspired
-        // slate-and-gold visuals, instead of Unity's stock dark thin track.
+        // Unity still handles slider dragging; only its visuals are replaced
+        // by the gray bar and slim white rectangular thumb from Stonewards.
         private float SettingsStyledSlider(Rect area, float value,
             float min, float max)
         {
             float chosen = GUI.HorizontalSlider(area, Mathf.Clamp(value, min, max),
                 min, max, _settingsSliderTrackStyle, _settingsSliderThumbStyle);
-            if (Event.current.type != EventType.Repaint)
-                return chosen;
-
-            const float thumbWidth = 17f;
-            const float railHeight = 10f;
-            float fraction = Mathf.InverseLerp(min, max, chosen);
-            float railY = area.y + (area.height - railHeight) * 0.5f;
-            float thumbX = area.x + (area.width - thumbWidth) * fraction;
-
-            Fill(new Rect(area.x, railY, area.width, railHeight), PanelFrame);
-            Fill(new Rect(area.x + 1f, railY + 1f,
-                area.width - 2f, railHeight - 2f), BarTrack);
-            float fillWidth = Mathf.Clamp(thumbX + thumbWidth * 0.5f -
-                area.x - 2f, 0f, area.width - 4f);
-            if (fillWidth > 0f)
-                Fill(new Rect(area.x + 2f, railY + 2f,
-                    fillWidth, railHeight - 4f),
-                    new Color(0.70f, 0.56f, 0.35f));
-
-            Fill(new Rect(thumbX, area.y, thumbWidth, area.height), PanelFrame);
-            Fill(new Rect(thumbX + 2f, area.y + 2f,
-                thumbWidth - 4f, area.height - 4f), SlotBackground);
-            Fill(new Rect(thumbX + 6f, area.y + 4f,
-                5f, area.height - 8f), HudButtonGold);
+            if (Event.current.type == EventType.Repaint)
+            {
+                const float gripWidth = 8f;
+                const float gripHeight = 22f;
+                float gripX = area.x + (area.width - gripWidth) *
+                    Mathf.InverseLerp(min, max, chosen);
+                Fill(new Rect(area.x, area.y + 8f, area.width, 5f),
+                    SettingsTrackFill);
+                Fill(new Rect(gripX, area.y - 1f, gripWidth, gripHeight),
+                    SettingsGripFill);
+            }
             return chosen;
+        }
+
+        private void SettingsValueBox(Rect area, string value)
+        {
+            if (Event.current.type == EventType.Repaint)
+                Fill(area, SettingsLightFill);
+            GUI.Label(area, FitText(value, _settingsValueStyle,
+                area.width - 6f), _settingsValueStyle);
+        }
+
+        private bool SettingsStepButton(Rect area, string symbol)
+        {
+            if (Event.current.type == EventType.Repaint)
+                Fill(area, SettingsLightFill);
+            return GUI.Button(area, symbol, _settingsStepStyle);
         }
 
         private void SettingsSlider(float x, float rowY, string title,
             float value, float min, float max, Action<float> setValue,
             string displayedValue)
         {
-            GUI.Label(new Rect(x + 23f, rowY, 278f, 27f),
+            if (Event.current.type == EventType.Repaint)
+                Fill(new Rect(x + 19f, rowY, SettingsWidth - 38f, 40f),
+                    SettingsRowFill);
+            GUI.Label(new Rect(x + 27f, rowY + 5f, 177f, 30f),
                 title, _buildNameStyle);
-            GUI.Label(new Rect(x + 370f, rowY, 100f, 27f),
-                displayedValue, _healthStyle);
+            SettingsValueBox(new Rect(x + 416f, rowY, 65f, 40f),
+                displayedValue);
             float chosen = SettingsStyledSlider(
-                new Rect(x + 28f, rowY + 29f, SettingsWidth - 56f, 20f),
+                new Rect(x + 212f, rowY + 10f, 192f, 20f),
                 value, min, max);
             if (Mathf.Abs(chosen - value) > 0.001f)
             {
@@ -1785,42 +1803,44 @@ namespace StonewardsPartyHUD
         private void SettingsOffset(float x, float rowY, string title,
             ConfigEntry<int> option, bool horizontal)
         {
-            // Use actual rendered HUD dimensions, not a fixed 460px limit.
-            // A missing panel (for example in the main menu) is allowed a
-            // full-screen range; gameplay always clamps the HUD onscreen.
-            float visiblePanel = horizontal ? _hudRenderedWidthPx : _hudRenderedHeightPx;
+            // Clamp the interactive range to the available physical screen,
+            // without overwriting a saved offset merely on resolution changes.
+            float panelSize = horizontal ? _hudRenderedWidthPx : _hudRenderedHeightPx;
             float screenSize = horizontal ? Screen.width : Screen.height;
-            int maxOffset = Mathf.Max(0, Mathf.FloorToInt(screenSize - visiblePanel));
+            int maxOffset = Mathf.Max(0, Mathf.FloorToInt(screenSize - panelSize));
             int displayed = Mathf.Clamp(option.Value, 0, maxOffset);
             int desired = displayed;
             bool changed = false;
 
-            GUI.Label(new Rect(x + 23f, rowY, 278f, 27f),
+            if (Event.current.type == EventType.Repaint)
+                Fill(new Rect(x + 19f, rowY, SettingsWidth - 38f, 40f),
+                    SettingsRowFill);
+            GUI.Label(new Rect(x + 27f, rowY + 5f, 163f, 30f),
                 title, _buildNameStyle);
-            if (SettingsButton(new Rect(x + 356f, rowY + 1f, 28f, 24f), "-"))
+
+            // Place -, value and + tightly together on the right side.
+            if (SettingsStepButton(new Rect(x + 344f, rowY + 5f, 26f, 30f), "-"))
             {
                 desired = displayed - 1;
                 changed = true;
             }
-            GUI.Label(new Rect(x + 388f, rowY, 55f, 27f),
-                FitText(option.Value + " px", _settingsValueStyle, 55f),
-                _settingsValueStyle);
-            if (SettingsButton(new Rect(x + 447f, rowY + 1f, 28f, 24f), "+"))
+            SettingsValueBox(new Rect(x + 373f, rowY + 5f, 65f, 30f),
+                option.Value + " px");
+            if (SettingsStepButton(new Rect(x + 441f, rowY + 5f, 33f, 30f), "+"))
             {
                 desired = displayed + 1;
                 changed = true;
             }
 
             int chosen = Mathf.RoundToInt(SettingsStyledSlider(
-                new Rect(x + 28f, rowY + 29f, SettingsWidth - 56f, 20f),
+                new Rect(x + 195f, rowY + 10f, 135f, 20f),
                 displayed, 0f, Mathf.Max(1, maxOffset)));
             if (chosen != displayed)
             {
                 desired = chosen;
                 changed = true;
             }
-            // Keep custom offsets unchanged when the screen is resized.
-            // Clamp and save only after the user explicitly changes a value.
+
             if (changed)
             {
                 desired = Mathf.Clamp(desired, 0, maxOffset);
@@ -2353,18 +2373,19 @@ namespace StonewardsPartyHUD
                     new Color(0.93f, 0.84f, 0.69f), TextAnchor.MiddleLeft, true);
                 _settingsButtonStyle = MakeStyle(15,
                     new Color(0.98f, 0.90f, 0.76f), TextAnchor.MiddleCenter, true);
-                _settingsValueStyle = MakeStyle(13, Color.white,
+                _settingsValueStyle = MakeStyle(13, SettingsDarkText,
                     TextAnchor.MiddleCenter, true);
-                // Only visuals are overridden: GUI.HorizontalSlider continues
-                // to own pointer dragging and keyboard/mouse state.
+                _settingsStepStyle = MakeStyle(15, SettingsDarkText,
+                    TextAnchor.MiddleCenter, true);
+                // Transparent styles preserve Unity's working drag logic.
                 _settingsSliderTrackStyle = new GUIStyle(GUIStyle.none)
                 {
                     fixedHeight = 20f
                 };
                 _settingsSliderThumbStyle = new GUIStyle(GUIStyle.none)
                 {
-                    fixedWidth = 17f,
-                    fixedHeight = 20f
+                    fixedWidth = 8f,
+                    fixedHeight = 22f
                 };
                 _hudActionLabelStyle = MakeStyle(14,
                     HudButtonText, TextAnchor.MiddleCenter, true);
@@ -2400,7 +2421,7 @@ namespace StonewardsPartyHUD
                 _badgeStyle, _healthStyle, _statusStyle, _companionStyle,
                 _alertStyle, _wallStatusStyle, _pingStyle,
                 _buildNameStyle, _buildDetailStyle, _buildHelpStyle,
-                _settingsButtonStyle, _settingsValueStyle,
+                _settingsButtonStyle, _settingsValueStyle, _settingsStepStyle,
                 _hudActionLabelStyle, _hudShortcutStyle
             };
             foreach (var style in styles)
@@ -2424,6 +2445,7 @@ namespace StonewardsPartyHUD
             _buildHelpStyle.fontSize = 12;
             _settingsButtonStyle.fontSize = 18;
             _settingsValueStyle.fontSize = 16;
+            _settingsStepStyle.fontSize = 18;
             _hudActionLabelStyle.fontSize = 16;
             _hudShortcutStyle.fontSize = 13;
             Logger.LogInfo("Party HUD is using Stonewards UI font: " + _nativeUiFont.name);
