@@ -12,7 +12,7 @@ if (-not $OutputDir) { $OutputDir = Join-Path $repo 'dist' }
 
 $manifest = Join-Path $repo 'packaging\manifest.json'
 $icon = Join-Path $repo 'packaging\icon.png'
-$readme = Join-Path $repo 'README.md'
+$readme = Join-Path $repo 'thunderstore\README.md'
 $changelog = Join-Path $repo 'CHANGELOG.md'
 $license = Join-Path $repo 'LICENSE'
 foreach ($required in @($manifest, $icon, $readme, $changelog, $license, $PluginDll)) {

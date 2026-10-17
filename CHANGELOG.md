@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1
+
+### Changed
+- Standardized the GitHub and Thunderstore descriptions for PartyHUD.
+- Packaged a dedicated, player-focused Thunderstore README.
+- No gameplay or configuration changes compared with 0.4.0.
+
 ## 0.4.0
 
 ### Added

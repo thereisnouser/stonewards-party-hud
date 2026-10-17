@@ -14,7 +14,7 @@ namespace StonewardsPartyHUD
     {
         public const string PluginGuid = "community.stonewards.partyhud";
         public const string PluginName = "Stonewards Party HUD";
-        public const string PluginVersion = "0.4.0";
+        public const string PluginVersion = "0.4.1";
 
         private const float RefreshSeconds = 0.2f;
         private const float PanelWidth = 278f;
