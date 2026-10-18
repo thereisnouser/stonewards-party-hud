@@ -248,6 +248,7 @@ namespace StonewardsPartyHUD
             public readonly List<BuildItemEntry> Tomes = new List<BuildItemEntry>();
             // Keep missing/unknown definitions visible without guessing their category.
             public readonly List<BuildItemEntry> Unknown = new List<BuildItemEntry>();
+            public readonly List<BuildDisplayRow> Rows = new List<BuildDisplayRow>();
         }
 
         private sealed class BuildItemEntry
@@ -642,6 +643,20 @@ namespace StonewardsPartyHUD
                             _nextWarning = Time.unscaledTime + 10f;
                         }
                     }
+                    // Build the view model only during the 0.8s refresh,
+                    // not on every IMGUI Repaint frame.
+                    if (build.HasRunData)
+                    {
+                        AppendBuildRows(build.Rows, "RINGS", build.Rings);
+                        AppendBuildRows(build.Rows, "TOMES", build.Tomes);
+                        if (build.Unknown.Count > 0)
+                            AppendBuildRows(build.Rows, "UNKNOWN UPGRADES", build.Unknown);
+                    }
+                    else
+                        build.Rows.Add(new BuildDisplayRow
+                        {
+                            Message = "BUILD DATA UNAVAILABLE"
+                        });
                     _buildPlayers.Add(build);
                 }
             }
@@ -2112,16 +2127,7 @@ namespace StonewardsPartyHUD
             _buildPlayerIndex = Mathf.Clamp(_buildPlayerIndex, 0,
                 _buildPlayers.Count - 1);
             var selected = _buildPlayers[_buildPlayerIndex];
-            var rows = new List<BuildDisplayRow>();
-            if (!selected.HasRunData)
-                rows.Add(new BuildDisplayRow { Message = "BUILD DATA UNAVAILABLE" });
-            else
-            {
-                AppendBuildRows(rows, "RINGS", selected.Rings);
-                AppendBuildRows(rows, "TOMES", selected.Tomes);
-                if (selected.Unknown.Count > 0)
-                    AppendBuildRows(rows, "UNKNOWN UPGRADES", selected.Unknown);
-            }
+            var rows = selected.Rows;
 
             int totalPages = Mathf.Max(1,
                 (rows.Count + BuildRowsPerPage - 1) / BuildRowsPerPage);
