@@ -569,7 +569,6 @@ namespace StonewardsPartyHUD
                                     item.Acquisitions++;
                                     // Each acquisition may have a different rarity:
                                     // the descriptive bonus is always the LAST one.
-                                    UpdateLastPickDescription(item, manager);
                                     continue;
                                 }
 
@@ -614,7 +613,6 @@ namespace StonewardsPartyHUD
                                     {
                                         // The ID remains visible when localization fails.
                                     }
-                                    UpdateLastPickDescription(item, manager);
                                 }
 
                                 byId.Add(item.ID, item);
@@ -625,6 +623,10 @@ namespace StonewardsPartyHUD
                                 else
                                     build.Unknown.Add(item);
                             }
+                            // Only localize once per distinct item, not once
+                            // for every saved acquisition in the history.
+                            foreach (var item in byId.Values)
+                                UpdateLastPickDescription(item, manager);
                         }
                     }
                     catch (Exception ex)
