@@ -33,6 +33,20 @@ powershell -ExecutionPolicy Bypass -File .\build-and-install.ps1 `
 
 Launch that profile with **Start modded**.
 
+## UI follow-up after October 20 in-game screenshots
+
+The two user screenshots confirm that the prior development build rendered actual ring/tome entries, icon sprites and levels. They also exposed clipped modifier text, a category heading stranded at the end of the first page, and unused space for short builds.
+
+The second UI iteration in this branch:
+
+- Widens the Build Inspector to **446 logical pixels** and allocates two lines for the last acquired effect's description.
+- Replaces the `LAST RARE/UNCOMMON` text prefix with a rarity-colored item stripe, keeping the effect wording prominent.
+- Calculates a variable-height window for the visible page. On large enough screens, **four rings and four tome types appear together** rather than separating tomes onto page 2.
+- Restricts the window to **780 logical pixels** (or the available on-screen height); long inventories still paginate, with section headings kept with their first item.
+- Keeps the original HUD styling, host-only data read, hotkeys and player switching.
+
+These source changes have **not yet been compiled or playtested**. In particular, verify that two-line localized descriptions render without clipping and that the enlarged panel fits at the display resolution.
+
 ## Gameplay verification before merging
 
 - [ ] The source compiles successfully against the installed game's managed DLLs. A successful GitHub commit is not compilation evidence.
@@ -41,8 +55,9 @@ Launch that profile with **Start modded**.
 - [ ] Test a known ring upgraded several times: the displayed level must match the game's inventory. Check repeated different rarities as well.
 - [ ] Pick up both a stackable and a non-stackable tome and compare the list/count against the native inventory.
 - [ ] Confirm whether in-game **RINGS/TOMES** wording matches `LEVELUP/PICKUP` in this version; if not, adjust only the classification/labels before release.
-- [ ] Inspect long localized effect text and absent sprites/definitions: the panel must remain legible and keep the ID as fallback.
-- [ ] Check pagination and player switching at 1920x1080 and 2560x1440, including builds containing more than six total rows.
+- [ ] Inspect long localized effect text and absent sprites/definitions: the panel must remain legible and keep the ID as fallback. Confirm multi-line bonuses are readable and not garbled or cropped.
+- [ ] Verify the screenshot cases: one ring plus one tome should produce a compact window; four rings plus four tome types should fit on one page where the screen allows.
+- [ ] Check pagination and player switching at 1920x1080 and 2560x1440, including builds with more rows than fit within the available vertical space.
 - [ ] Confirm no regression to HP, King/wall durability, Hunter bear, outlines, ping, settings or input behavior.
 
 **Not yet verified:** No local Stonewards game installation or game-referenced .NET build toolchain is available in the development environment. Merge/release only after the user has performed the in-game checks.
