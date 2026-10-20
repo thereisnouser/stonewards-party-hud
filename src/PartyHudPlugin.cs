@@ -104,14 +104,14 @@ namespace StonewardsPartyHUD
         private InputManager.InputState _inputStateBeforeSettings;
         private bool _ownsSettingsInput;
         private bool _settingsInputRestorePending;
-        // InventoryScreen does not inherit BaseMenu. Its UI Toolkit root
-        // switches between DisplayStyle.Flex and None on opening/closing.
         // The game's UpgradeCharacterStatEffect.Apply adds baseValue * rarity
         // multiplier to a character stat. Read the serialized base value without
         // invoking Effect.GetCurrentValue(), which targets the host's own stats.
         private static readonly FieldInfo UpgradeBaseValueField =
             typeof(UpgradeEffect).GetField("baseValue",
                 BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        // InventoryScreen does not inherit BaseMenu. Its UI Toolkit root
+        // switches between DisplayStyle.Flex and None on opening/closing.
         private static readonly FieldInfo InventoryRootField =
             typeof(InventoryScreen).GetField("inventoryScreen",
                 BindingFlags.Instance | BindingFlags.NonPublic);
@@ -2313,18 +2313,6 @@ namespace StonewardsPartyHUD
                 : item.Acquisitions > 1 ? "x" + item.Acquisitions : "";
             GUI.Label(new Rect(x + BuildWindowWidth - 88f, rowY + 3f,
                 72f, 30f), count, _healthStyle);
-        }
-
-        private static Color GetRingRarityColor(Rarity rarity)
-        {
-            switch (rarity)
-            {
-                case Rarity.UNCOMMON: return new Color(0.44f, 0.84f, 0.54f);
-                case Rarity.RARE: return new Color(0.46f, 0.73f, 0.99f);
-                case Rarity.EPIC: return new Color(0.76f, 0.53f, 0.96f);
-                case Rarity.LEGENDARY: return new Color(1f, 0.77f, 0.37f);
-                default: return new Color(0.85f, 0.84f, 0.82f);
-            }
         }
 
         private static void DrawStonewardsWindow(float x, float y,
