@@ -30,10 +30,13 @@ namespace StonewardsPartyHUD
         private const float FooterPadding = 8f;
         private const float HudActionButtonWidth = 120f;
         private const float HudActionButtonHeight = 23f;
-        private const float BuildWindowWidth = 348f;
-        private const float BuildWindowHeight = 434f;
-        private const float BuildRowHeight = 42f;
-        private const int BuildRowsPerPage = 6;
+        private const float BuildWindowWidth = 446f;
+        private const float BuildHeaderHeight = 112f;
+        private const float BuildFooterHeight = 70f;
+        private const float BuildMaxWindowHeight = 720f;
+        private const float BuildItemRowHeight = 58f;
+        private const float BuildSectionRowHeight = 35f;
+        private const float BuildMessageRowHeight = 38f;
         private const float SettingsWidth = 500f;
         private const float SettingsHeight = 540f;
         private const float ReferenceScreenWidth = 1920f;
@@ -188,6 +191,7 @@ namespace StonewardsPartyHUD
         private GUIStyle _pingStyle;
         private GUIStyle _buildNameStyle;
         private GUIStyle _buildDetailStyle;
+        private GUIStyle _buildEffectStyle;
         private GUIStyle _buildHelpStyle;
         private GUIStyle _settingsButtonStyle;
         private GUIStyle _settingsValueStyle;
@@ -272,6 +276,13 @@ namespace StonewardsPartyHUD
             public string Heading;
             public string Message;
             public BuildItemEntry Item;
+        }
+
+        private sealed class BuildPageRange
+        {
+            public int Start;
+            public int End;
+            public float ContentHeight;
         }
 
         private void Awake()
@@ -1559,13 +1570,26 @@ namespace StonewardsPartyHUD
                 if (repaint && _showBuilds && Mirror.NetworkServer.active &&
                     Mirror.NetworkClient.active && _enableBuildInspector.Value)
                 {
-                    // Separate optional window, adjacent to the normal HUD.
-                    // Keep it on-screen when the HUD is moved by the user.
+                    // Fit visible rows, not a fixed empty frame. Grow until the
+                    // screen budget is reached, then paginate long builds.
+                    float pageBudget = Mathf.Max(93f, Mathf.Min(
+                        BuildMaxWindowHeight, screenHeight - 16f) -
+                        BuildHeaderHeight - BuildFooterHeight);
+                    List<BuildDisplayRow> rows = _buildPlayers.Count > 0
+                        ? _buildPlayers[Mathf.Clamp(_buildPlayerIndex, 0,
+                            _buildPlayers.Count - 1)].Rows : null;
+                    var pages = PaginateBuildRows(rows, pageBudget);
+                    _buildPage = Mathf.Clamp(_buildPage, 0, pages.Count - 1);
+                    BuildPageRange visible = pages[_buildPage];
+                    float detailsHeight = Mathf.Max(250f,
+                        BuildHeaderHeight + visible.ContentHeight +
+                        BuildFooterHeight);
                     float detailsX = Mathf.Clamp(x + PanelWidth + 12f, 8f,
                         Mathf.Max(8f, screenWidth - BuildWindowWidth - 8f));
                     float detailsY = Mathf.Clamp(y, 8f,
-                        Mathf.Max(8f, screenHeight - BuildWindowHeight - 8f));
-                    DrawBuildInspector(detailsX, detailsY);
+                        Mathf.Max(8f, screenHeight - detailsHeight - 8f));
+                    DrawBuildInspector(detailsX, detailsY, detailsHeight,
+                        visible, pages.Count);
                 }
             }
             finally
@@ -2101,9 +2125,59 @@ namespace StonewardsPartyHUD
                     rows.Add(new BuildDisplayRow { Item = items[i] });
         }
 
-        private void DrawBuildInspector(float x, float y)
+        private static float BuildDisplayRowHeight(BuildDisplayRow row)
         {
-            DrawStonewardsWindow(x, y, BuildWindowWidth, BuildWindowHeight);
+            if (row.Heading != null)
+                return BuildSectionRowHeight;
+            return row.Item != null ? BuildItemRowHeight : BuildMessageRowHeight;
+        }
+
+        private static List<BuildPageRange> PaginateBuildRows(
+            List<BuildDisplayRow> rows, float maxContentHeight)
+        {
+            var pages = new List<BuildPageRange>();
+            if (rows == null || rows.Count == 0)
+            {
+                pages.Add(new BuildPageRange());
+                return pages;
+            }
+
+            int first = 0;
+            float height = 0f;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                float next = BuildDisplayRowHeight(rows[i]);
+                // A category heading must stay with at least its first row.
+                float required = next;
+                if (rows[i].Heading != null && i + 1 < rows.Count)
+                    required += BuildDisplayRowHeight(rows[i + 1]);
+
+                if (i > first && height + required > maxContentHeight)
+                {
+                    pages.Add(new BuildPageRange
+                    {
+                        Start = first,
+                        End = i,
+                        ContentHeight = height
+                    });
+                    first = i;
+                    height = 0f;
+                }
+                height += next;
+            }
+            pages.Add(new BuildPageRange
+            {
+                Start = first,
+                End = rows.Count,
+                ContentHeight = height
+            });
+            return pages;
+        }
+
+        private void DrawBuildInspector(float x, float y,
+            float height, BuildPageRange page, int totalPages)
+        {
+            DrawStonewardsWindow(x, y, BuildWindowWidth, height);
             GUI.Label(new Rect(x + 12f, y + 2f, BuildWindowWidth - 24f, 29f),
                 "PLAYER BUILD", _headingStyle);
 
@@ -2116,7 +2190,7 @@ namespace StonewardsPartyHUD
                     BuildWindowWidth - 36f, 30f),
                     "Only the host can inspect teammate builds.",
                     _buildDetailStyle);
-                GUI.Label(new Rect(x + 16f, y + BuildWindowHeight - 28f,
+                GUI.Label(new Rect(x + 16f, y + height - 28f,
                     BuildWindowWidth - 32f, 18f),
                     FitText(ShortcutLabel(_toggleBuildInspectorShortcut.Value) +
                         " CLOSE", _buildHelpStyle, BuildWindowWidth - 32f),
@@ -2127,11 +2201,6 @@ namespace StonewardsPartyHUD
             _buildPlayerIndex = Mathf.Clamp(_buildPlayerIndex, 0,
                 _buildPlayers.Count - 1);
             var selected = _buildPlayers[_buildPlayerIndex];
-            var rows = selected.Rows;
-
-            int totalPages = Mathf.Max(1,
-                (rows.Count + BuildRowsPerPage - 1) / BuildRowsPerPage);
-            _buildPage = Mathf.Clamp(_buildPage, 0, totalPages - 1);
             GUI.Label(new Rect(x + 18f, y + 53f, BuildWindowWidth - 105f, 26f),
                 FitText(selected.Name, _buildNameStyle, BuildWindowWidth - 105f),
                 _buildNameStyle);
@@ -2150,33 +2219,30 @@ namespace StonewardsPartyHUD
             Fill(new Rect(x + 12f, y + 108f,
                 BuildWindowWidth - 24f, 1f), PanelDivider);
 
-            int start = _buildPage * BuildRowsPerPage;
-            int end = Math.Min(start + BuildRowsPerPage, rows.Count);
-            for (int i = start; i < end; i++)
+            float rowY = y + BuildHeaderHeight;
+            for (int i = page.Start; i < page.End; i++)
             {
-                var row = rows[i];
-                float rowY = y + 112f + (i - start) * BuildRowHeight;
+                var row = selected.Rows[i];
                 if (row.Heading != null)
                 {
-                    Fill(new Rect(x + 12f, rowY + 2f,
-                        BuildWindowWidth - 24f, BuildRowHeight - 5f),
+                    Fill(new Rect(x + 12f, rowY + 1f,
+                        BuildWindowWidth - 24f, BuildSectionRowHeight - 2f),
                         PanelHeader);
-                    GUI.Label(new Rect(x + 20f, rowY + 7f,
+                    GUI.Label(new Rect(x + 20f, rowY + 4f,
                         BuildWindowWidth - 40f, 26f),
                         row.Heading, _buildNameStyle);
                 }
                 else if (row.Item != null)
-                    DrawBuildItem(x, rowY, row.Item, i - start);
+                    DrawBuildItem(x, rowY, row.Item, i - page.Start);
                 else
-                    GUI.Label(new Rect(x + 24f, rowY + 10f,
+                    GUI.Label(new Rect(x + 24f, rowY + 8f,
                         BuildWindowWidth - 48f, 22f),
                         row.Message, _buildDetailStyle);
+                rowY += BuildDisplayRowHeight(row);
             }
 
-            Fill(new Rect(x + 12f, y + BuildWindowHeight - 56f,
+            Fill(new Rect(x + 12f, y + height - 56f,
                 BuildWindowWidth - 24f, 1f), PanelDivider);
-            _buildHelpStyle.normal.textColor =
-                new Color(0.92f, 0.83f, 0.70f);
             string playerHotkeys =
                 ShortcutLabel(_toggleBuildInspectorShortcut.Value) + " CLOSE   " +
                 ShortcutLabel(_nextBuildPlayerShortcut.Value) + " PLAYER";
@@ -2184,11 +2250,11 @@ namespace StonewardsPartyHUD
                 ShortcutLabel(_previousBuildPageShortcut.Value) + " PREV   " +
                 ShortcutLabel(_nextBuildPageShortcut.Value) + " NEXT   " +
                 (_buildPage + 1) + "/" + totalPages;
-            GUI.Label(new Rect(x + 15f, y + BuildWindowHeight - 51f,
+            GUI.Label(new Rect(x + 15f, y + height - 51f,
                 BuildWindowWidth - 29f, 18f),
                 FitText(playerHotkeys, _buildHelpStyle, BuildWindowWidth - 29f),
                 _buildHelpStyle);
-            GUI.Label(new Rect(x + 15f, y + BuildWindowHeight - 28f,
+            GUI.Label(new Rect(x + 15f, y + height - 28f,
                 BuildWindowWidth - 29f, 18f),
                 FitText(pageHotkeys, _buildHelpStyle, BuildWindowWidth - 29f),
                 _buildHelpStyle);
@@ -2199,41 +2265,35 @@ namespace StonewardsPartyHUD
         {
             if (visibleIndex % 2 == 1)
                 Fill(new Rect(x + 11f, rowY, BuildWindowWidth - 22f,
-                    BuildRowHeight),
+                    BuildItemRowHeight),
                     new Color(0.30f, 0.33f, 0.39f, 0.14f));
 
             Color rarityColor = GetRingRarityColor(item.LastRarity);
-            Fill(new Rect(x + 15f, rowY + 7f, 3f, 30f), rarityColor);
-            Fill(new Rect(x + 23f, rowY + 5f, 33f, 33f),
-                SlotBackground);
+            Fill(new Rect(x + 15f, rowY + 11f, 3f, 36f), rarityColor);
+            Fill(new Rect(x + 23f, rowY + 10f, 38f, 38f), SlotBackground);
             if (!DrawClassIcon(item.Icon,
-                new Rect(x + 26f, rowY + 8f, 27f, 27f)))
-                Fill(new Rect(x + 31f, rowY + 13f, 17f, 17f),
+                new Rect(x + 27f, rowY + 14f, 30f, 30f)))
+                Fill(new Rect(x + 34f, rowY + 21f, 16f, 16f),
                     rarityColor);
-
-            const float nameWidth = BuildWindowWidth - 151f;
-            GUI.Label(new Rect(x + 64f, rowY + 2f, nameWidth, 23f),
-                FitText(item.Name, _buildNameStyle, nameWidth),
-                _buildNameStyle);
-
-            // Rarity describes the saved pick. The optional description is
-            // specifically from the most recent pick, never a total stat.
-            string detail = (item.Acquisitions > 1 ? "LAST " : "") +
-                item.LastRarity.ToString();
-            if (!string.IsNullOrEmpty(item.LastPickDescription))
-                detail += "  " + item.LastPickDescription;
-            _buildDetailStyle.normal.textColor = rarityColor;
-            GUI.Label(new Rect(x + 64f, rowY + 23f,
-                BuildWindowWidth - 135f, 17f),
-                FitText(detail, _buildDetailStyle, BuildWindowWidth - 135f),
-                _buildDetailStyle);
 
             string count = item.Kind == BuildItemKind.Ring
                 ? "LVL " + item.Acquisitions
                 : item.Acquisitions > 1 ? "x" + item.Acquisitions : "";
+            const float nameWidth = BuildWindowWidth - 184f;
+            GUI.Label(new Rect(x + 71f, rowY + 3f, nameWidth, 25f),
+                FitText(item.Name, _buildNameStyle, nameWidth),
+                _buildNameStyle);
             if (count.Length > 0)
-                GUI.Label(new Rect(x + BuildWindowWidth - 79f, rowY + 8f,
-                    64f, 25f), count, _healthStyle);
+                GUI.Label(new Rect(x + BuildWindowWidth - 100f, rowY + 6f,
+                    82f, 24f), count, _healthStyle);
+
+            // The colored stripe communicates the latest saved rarity.
+            // The descriptive bonus below is for that pick, not the sum.
+            string effect = !string.IsNullOrEmpty(item.LastPickDescription)
+                ? item.LastPickDescription : item.LastRarity.ToString();
+            GUI.Label(new Rect(x + 71f, rowY + 28f,
+                BuildWindowWidth - 92f, 27f),
+                effect, _buildEffectStyle);
         }
 
         private static Color GetRingRarityColor(Rarity rarity)
@@ -2505,6 +2565,9 @@ namespace StonewardsPartyHUD
                     TextAnchor.MiddleLeft, true);
                 _buildDetailStyle = MakeStyle(12,
                     new Color(0.88f, 0.84f, 0.77f), TextAnchor.MiddleLeft, true);
+                _buildEffectStyle = MakeStyle(12,
+                    new Color(0.88f, 0.84f, 0.77f), TextAnchor.UpperLeft, false);
+                _buildEffectStyle.wordWrap = true;
                 _buildHelpStyle = MakeStyle(11,
                     new Color(0.93f, 0.84f, 0.69f), TextAnchor.MiddleLeft, true);
                 _settingsButtonStyle = MakeStyle(15,
@@ -2556,7 +2619,8 @@ namespace StonewardsPartyHUD
                 _headingStyle, _countStyle, _nameStyle, _classStyle,
                 _badgeStyle, _healthStyle, _statusStyle, _companionStyle,
                 _alertStyle, _wallStatusStyle, _pingStyle,
-                _buildNameStyle, _buildDetailStyle, _buildHelpStyle,
+                _buildNameStyle, _buildDetailStyle, _buildEffectStyle,
+                _buildHelpStyle,
                 _settingsButtonStyle, _settingsValueStyle, _settingsStepStyle,
                 _hudActionLabelStyle, _hudShortcutStyle
             };
@@ -2578,6 +2642,7 @@ namespace StonewardsPartyHUD
             _pingStyle.fontSize = 13;
             _buildNameStyle.fontSize = 19;
             _buildDetailStyle.fontSize = 15;
+            _buildEffectStyle.fontSize = 15;
             _buildHelpStyle.fontSize = 12;
             _settingsButtonStyle.fontSize = 18;
             _settingsValueStyle.fontSize = 16;
