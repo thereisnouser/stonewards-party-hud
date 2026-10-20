@@ -33,8 +33,8 @@ namespace StonewardsPartyHUD
         private const float BuildWindowWidth = 446f;
         private const float BuildHeaderHeight = 112f;
         private const float BuildFooterHeight = 70f;
-        private const float BuildMaxWindowHeight = 720f;
-        private const float BuildItemRowHeight = 58f;
+        private const float BuildMaxWindowHeight = 780f;
+        private const float BuildItemRowHeight = 64f;
         private const float BuildSectionRowHeight = 35f;
         private const float BuildMessageRowHeight = 38f;
         private const float SettingsWidth = 500f;
@@ -1572,7 +1572,7 @@ namespace StonewardsPartyHUD
                 {
                     // Fit visible rows, not a fixed empty frame. Grow until the
                     // screen budget is reached, then paginate long builds.
-                    float pageBudget = Mathf.Max(93f, Mathf.Min(
+                    float pageBudget = Mathf.Max(100f, Mathf.Min(
                         BuildMaxWindowHeight, screenHeight - 16f) -
                         BuildHeaderHeight - BuildFooterHeight);
                     List<BuildDisplayRow> rows = _buildPlayers.Count > 0
@@ -2292,7 +2292,7 @@ namespace StonewardsPartyHUD
             string effect = !string.IsNullOrEmpty(item.LastPickDescription)
                 ? item.LastPickDescription : item.LastRarity.ToString();
             GUI.Label(new Rect(x + 71f, rowY + 28f,
-                BuildWindowWidth - 92f, 27f),
+                BuildWindowWidth - 92f, 34f),
                 effect, _buildEffectStyle);
         }
 
