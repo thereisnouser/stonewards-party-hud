@@ -30,12 +30,12 @@ namespace StonewardsPartyHUD
         private const float FooterPadding = 8f;
         private const float HudActionButtonWidth = 120f;
         private const float HudActionButtonHeight = 23f;
-        private const float BuildWindowWidth = 446f;
+        private const float BuildWindowWidth = 540f;
         private const float BuildHeaderHeight = 112f;
         private const float BuildFooterHeight = 70f;
-        private const float BuildMaxWindowHeight = 780f;
-        private const float BuildItemRowHeight = 64f;
-        private const float BuildSectionRowHeight = 35f;
+        private const float BuildMaxWindowHeight = 720f;
+        private const float BuildItemRowHeight = 38f;
+        private const float BuildSectionRowHeight = 31f;
         private const float BuildMessageRowHeight = 38f;
         private const float SettingsWidth = 500f;
         private const float SettingsHeight = 540f;
@@ -106,6 +106,12 @@ namespace StonewardsPartyHUD
         private bool _settingsInputRestorePending;
         // InventoryScreen does not inherit BaseMenu. Its UI Toolkit root
         // switches between DisplayStyle.Flex and None on opening/closing.
+        // The game's UpgradeCharacterStatEffect.Apply adds baseValue * rarity
+        // multiplier to a character stat. Read the serialized base value without
+        // invoking Effect.GetCurrentValue(), which targets the host's own stats.
+        private static readonly FieldInfo UpgradeBaseValueField =
+            typeof(UpgradeEffect).GetField("baseValue",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
         private static readonly FieldInfo InventoryRootField =
             typeof(InventoryScreen).GetField("inventoryScreen",
                 BindingFlags.Instance | BindingFlags.NonPublic);
@@ -260,15 +266,13 @@ namespace StonewardsPartyHUD
             public string ID;
             public string Name;
             public BuildItemKind Kind;
-            public Rarity LastRarity;
-            public bool MixedRarities;
             public Sprite Icon;
-            // The saved run contains one (ID, rarity) record per acquisition.
-            // Level for LEVELUP entries and stack count for PICKUP entries are
-            // reconstructed from that acquisition history, never from rarity.
+            public RogueLikeUpgradeSO Definition;
             public int Acquisitions;
-            // Localized effect of the LAST recorded pick, NOT the aggregate bonus.
-            public string LastPickDescription;
+            // Sum of the rarity multipliers of EVERY saved acquisition.
+            // Never substitute the last pick for the full item's modifier.
+            public float TotalRarityMultiplier;
+            public string Modifier;
         }
 
         private sealed class BuildDisplayRow
@@ -576,11 +580,10 @@ namespace StonewardsPartyHUD
                                 BuildItemEntry item;
                                 if (byId.TryGetValue(saved.upgradeID, out item))
                                 {
-                                    item.MixedRarities |= item.LastRarity != saved.rarity;
-                                    item.LastRarity = saved.rarity;
                                     item.Acquisitions++;
-                                    // Each acquisition may have a different rarity:
-                                    // the descriptive bonus is always the LAST one.
+                                    if (item.Definition != null)
+                                        item.TotalRarityMultiplier +=
+                                            item.Definition.GetBonusValuePerRarity(saved.rarity);
                                     continue;
                                 }
 
@@ -609,8 +612,10 @@ namespace StonewardsPartyHUD
                                     ID = saved.upgradeID,
                                     Name = saved.upgradeID,
                                     Kind = kind,
-                                    LastRarity = saved.rarity,
-                                    Acquisitions = 1
+                                    Definition = definition,
+                                    Acquisitions = 1,
+                                    TotalRarityMultiplier = definition == null ? 0f :
+                                        definition.GetBonusValuePerRarity(saved.rarity)
                                 };
                                 if (definition != null)
                                 {
@@ -635,10 +640,10 @@ namespace StonewardsPartyHUD
                                 else
                                     build.Unknown.Add(item);
                             }
-                            // Only localize once per distinct item, not once
-                            // for every saved acquisition in the history.
+                            // Resolve one aggregate modifier per item, once
+                            // per refresh, rather than reformatting every GUI frame.
                             foreach (var item in byId.Values)
-                                UpdateLastPickDescription(item, manager);
+                                item.Modifier = GetBuildModifier(item);
                         }
                     }
                     catch (Exception ex)
@@ -691,31 +696,47 @@ namespace StonewardsPartyHUD
                     }
         }
 
-        private static void UpdateLastPickDescription(BuildItemEntry item,
-            RogueLikeUpgradeManager manager)
+        private static string GetBuildModifier(BuildItemEntry item)
         {
-            if (manager == null)
-                return;
+            // Only character-stat effects use this exact additive formula.
+            // Other effects can have special/nonlinear behavior; do not guess.
+            if (item.Definition == null ||
+                !(item.Definition.Effect is UpgradeCharacterStatEffect) ||
+                UpgradeBaseValueField == null ||
+                item.TotalRarityMultiplier <= 0f)
+                return "—";
+
             try
             {
-                var definition = manager.GetUpgradeSOByID(item.ID);
-                if (definition == null)
-                    return;
+                UpgradeEffect effect = item.Definition.Effect;
+                float baseValue = (float)UpgradeBaseValueField.GetValue(effect);
+                float totalBonus = baseValue * item.TotalRarityMultiplier;
+                if (float.IsNaN(totalBonus) || float.IsInfinity(totalBonus))
+                    return "—";
 
-                // Stonewards exposes GetLocalizedDescriptionWithRarity for one
-                // acquisition. It is not an aggregate of all previous picks.
-                string description = definition.GetLocalizedDescriptionWithRarity(
-                    item.LastRarity);
-                if (!string.IsNullOrWhiteSpace(description))
-                {
-                    item.LastPickDescription = System.Text.RegularExpressions.Regex
-                        .Replace(description, "<[^>]*>", "")
-                        .Replace('\r', ' ').Replace('\n', ' ').Trim();
-                }
+                // Game formatter handles percent units and numeric precision.
+                // Pass the ITEM'S cumulative bonus rather than current host stats.
+                var format = effect.GetType().GetMethod("GetFormattedValue",
+                    BindingFlags.Instance | BindingFlags.NonPublic |
+                    BindingFlags.Public);
+                if (format == null)
+                    return "—";
+                string formatted = format.Invoke(effect,
+                    new object[] { totalBonus }) as string;
+                if (string.IsNullOrWhiteSpace(formatted))
+                    return "—";
+                formatted = System.Text.RegularExpressions.Regex
+                    .Replace(formatted, "<[^>]*>", "").Trim();
+                if (totalBonus > 0f && !formatted.StartsWith("+") &&
+                    !formatted.StartsWith("-"))
+                    formatted = "+" + formatted;
+                return formatted;
             }
             catch
             {
-                // A missing localization/effect never hides the upgrade itself.
+                // Unsupported effects display a dash, not another player's
+                // stats or the misleading modifier of the last selected pick.
+                return "—";
             }
         }
 
@@ -2268,32 +2289,30 @@ namespace StonewardsPartyHUD
                     BuildItemRowHeight),
                     new Color(0.30f, 0.33f, 0.39f, 0.14f));
 
-            Color rarityColor = GetRingRarityColor(item.LastRarity);
-            Fill(new Rect(x + 15f, rowY + 11f, 3f, 36f), rarityColor);
-            Fill(new Rect(x + 23f, rowY + 10f, 38f, 38f), SlotBackground);
+            // Single compact line: icon | name | total item modifier | level.
+            // No "LAST" field, rarity history, or next-value preview.
+            Fill(new Rect(x + 15f, rowY + 6f, 3f, 26f), PanelFrame);
+            Fill(new Rect(x + 24f, rowY + 4f, 30f, 30f), SlotBackground);
             if (!DrawClassIcon(item.Icon,
-                new Rect(x + 27f, rowY + 14f, 30f, 30f)))
-                Fill(new Rect(x + 34f, rowY + 21f, 16f, 16f),
-                    rarityColor);
+                new Rect(x + 27f, rowY + 7f, 24f, 24f)))
+                Fill(new Rect(x + 33f, rowY + 13f, 12f, 12f),
+                    PanelFrame);
+
+            const float nameWidth = 214f;
+            GUI.Label(new Rect(x + 64f, rowY + 3f, nameWidth, 30f),
+                FitText(item.Name, _buildNameStyle, nameWidth),
+                _buildNameStyle);
+
+            const float modifierWidth = 152f;
+            GUI.Label(new Rect(x + 289f, rowY + 3f, modifierWidth, 30f),
+                FitText(item.Modifier ?? "—", _buildEffectStyle,
+                    modifierWidth), _buildEffectStyle);
 
             string count = item.Kind == BuildItemKind.Ring
                 ? "LVL " + item.Acquisitions
                 : item.Acquisitions > 1 ? "x" + item.Acquisitions : "";
-            const float nameWidth = BuildWindowWidth - 184f;
-            GUI.Label(new Rect(x + 71f, rowY + 3f, nameWidth, 25f),
-                FitText(item.Name, _buildNameStyle, nameWidth),
-                _buildNameStyle);
-            if (count.Length > 0)
-                GUI.Label(new Rect(x + BuildWindowWidth - 100f, rowY + 6f,
-                    82f, 24f), count, _healthStyle);
-
-            // The colored stripe communicates the latest saved rarity.
-            // The descriptive bonus below is for that pick, not the sum.
-            string effect = !string.IsNullOrEmpty(item.LastPickDescription)
-                ? item.LastPickDescription : item.LastRarity.ToString();
-            GUI.Label(new Rect(x + 71f, rowY + 28f,
-                BuildWindowWidth - 92f, 34f),
-                effect, _buildEffectStyle);
+            GUI.Label(new Rect(x + BuildWindowWidth - 88f, rowY + 3f,
+                72f, 30f), count, _healthStyle);
         }
 
         private static Color GetRingRarityColor(Rarity rarity)
@@ -2566,8 +2585,7 @@ namespace StonewardsPartyHUD
                 _buildDetailStyle = MakeStyle(12,
                     new Color(0.88f, 0.84f, 0.77f), TextAnchor.MiddleLeft, true);
                 _buildEffectStyle = MakeStyle(12,
-                    new Color(0.88f, 0.84f, 0.77f), TextAnchor.UpperLeft, false);
-                _buildEffectStyle.wordWrap = true;
+                    new Color(0.88f, 0.84f, 0.77f), TextAnchor.MiddleLeft, false);
                 _buildHelpStyle = MakeStyle(11,
                     new Color(0.93f, 0.84f, 0.69f), TextAnchor.MiddleLeft, true);
                 _settingsButtonStyle = MakeStyle(15,
