@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.2
+## 0.5.0
 
 ### Added
 - Rebuilt the host-only Build Inspector around an inventory-style view with separate **RINGS** and **TOMES** sections.
