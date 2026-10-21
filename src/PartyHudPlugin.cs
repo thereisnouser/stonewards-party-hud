@@ -188,6 +188,8 @@ namespace StonewardsPartyHUD
         private GUIStyle _pingStyle;
         private GUIStyle _buildNameStyle;
         private GUIStyle _buildDetailStyle;
+        private GUIStyle _buildEffectStyle;
+        private GUIStyle _buildLevelStyle;
         private GUIStyle _buildHelpStyle;
         private GUIStyle _settingsButtonStyle;
         private GUIStyle _settingsValueStyle;
@@ -2073,12 +2075,12 @@ namespace StonewardsPartyHUD
                         BuildWindowWidth - 135f, 23f),
                         FitText(ring.Name, _buildNameStyle,
                             BuildWindowWidth - 135f), _buildNameStyle);
-                    _buildDetailStyle.normal.textColor = rarityColor;
+                    _buildEffectStyle.normal.textColor = rarityColor;
                     GUI.Label(new Rect(x + 64f, rowY + 23f,
-                        BuildWindowWidth - 140f, 17f),
-                        ring.Rarity.ToString(), _buildDetailStyle);
+                        BuildWindowWidth - 140f, 18f),
+                        ring.Rarity.ToString(), _buildEffectStyle);
                     GUI.Label(new Rect(x + BuildWindowWidth - 63f, rowY + 8f,
-                        48f, 25f), "x" + ring.Picks, _healthStyle);
+                        48f, 25f), "x" + ring.Picks, _buildLevelStyle);
                 }
             }
 
@@ -2369,6 +2371,10 @@ namespace StonewardsPartyHUD
                     TextAnchor.MiddleLeft, true);
                 _buildDetailStyle = MakeStyle(12,
                     new Color(0.88f, 0.84f, 0.77f), TextAnchor.MiddleLeft, true);
+                // Use inspector-only styles so regular HUD HP and other labels stay unchanged.
+                _buildEffectStyle = MakeStyle(13,
+                    new Color(0.88f, 0.84f, 0.77f), TextAnchor.MiddleLeft, true);
+                _buildLevelStyle = MakeStyle(14, Color.white, TextAnchor.MiddleRight, true);
                 _buildHelpStyle = MakeStyle(11,
                     new Color(0.93f, 0.84f, 0.69f), TextAnchor.MiddleLeft, true);
                 _settingsButtonStyle = MakeStyle(15,
@@ -2420,8 +2426,8 @@ namespace StonewardsPartyHUD
                 _headingStyle, _countStyle, _nameStyle, _classStyle,
                 _badgeStyle, _healthStyle, _statusStyle, _companionStyle,
                 _alertStyle, _wallStatusStyle, _pingStyle,
-                _buildNameStyle, _buildDetailStyle, _buildHelpStyle,
-                _settingsButtonStyle, _settingsValueStyle, _settingsStepStyle,
+                _buildNameStyle, _buildDetailStyle, _buildEffectStyle,
+                _buildLevelStyle, _buildHelpStyle, _settingsButtonStyle, _settingsValueStyle, _settingsStepStyle,
                 _hudActionLabelStyle, _hudShortcutStyle
             };
             foreach (var style in styles)
@@ -2442,6 +2448,8 @@ namespace StonewardsPartyHUD
             _pingStyle.fontSize = 13;
             _buildNameStyle.fontSize = 19;
             _buildDetailStyle.fontSize = 15;
+            _buildEffectStyle.fontSize = 16;
+            _buildLevelStyle.fontSize = 17;
             _buildHelpStyle.fontSize = 12;
             _settingsButtonStyle.fontSize = 18;
             _settingsValueStyle.fontSize = 16;
