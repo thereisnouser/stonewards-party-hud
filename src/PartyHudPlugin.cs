@@ -30,10 +30,13 @@ namespace StonewardsPartyHUD
         private const float FooterPadding = 8f;
         private const float HudActionButtonWidth = 120f;
         private const float HudActionButtonHeight = 23f;
-        private const float BuildWindowWidth = 348f;
-        private const float BuildWindowHeight = 434f;
-        private const float BuildRingRowHeight = 42f;
-        private const int BuildRingsPerPage = 6;
+        private const float BuildWindowWidth = 540f;
+        private const float BuildHeaderHeight = 112f;
+        private const float BuildFooterHeight = 70f;
+        private const float BuildMaxWindowHeight = 720f;
+        private const float BuildItemRowHeight = 38f;
+        private const float BuildSectionRowHeight = 31f;
+        private const float BuildMessageRowHeight = 38f;
         private const float SettingsWidth = 500f;
         private const float SettingsHeight = 540f;
         private const float ReferenceScreenWidth = 1920f;
@@ -101,6 +104,12 @@ namespace StonewardsPartyHUD
         private InputManager.InputState _inputStateBeforeSettings;
         private bool _ownsSettingsInput;
         private bool _settingsInputRestorePending;
+        // The game's UpgradeCharacterStatEffect.Apply adds baseValue * rarity
+        // multiplier to a character stat. Read the serialized base value without
+        // invoking Effect.GetCurrentValue(), which targets the host's own stats.
+        private static readonly FieldInfo UpgradeBaseValueField =
+            typeof(UpgradeEffect).GetField("baseValue",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
         // InventoryScreen does not inherit BaseMenu. Its UI Toolkit root
         // switches between DisplayStyle.Flex and None on opening/closing.
         private static readonly FieldInfo InventoryRootField =
@@ -234,21 +243,51 @@ namespace StonewardsPartyHUD
             public bool IsKnockedOut;
         }
 
+        private enum BuildItemKind
+        {
+            Ring,
+            Tome,
+            Unknown
+        }
+
         private sealed class PlayerBuildEntry
         {
             public FirstPersonController Player;
             public string Name;
             public bool HasRunData;
-            public readonly List<BuildRingEntry> Rings = new List<BuildRingEntry>();
+            public readonly List<BuildItemEntry> Rings = new List<BuildItemEntry>();
+            public readonly List<BuildItemEntry> Tomes = new List<BuildItemEntry>();
+            // Keep missing/unknown definitions visible without guessing their category.
+            public readonly List<BuildItemEntry> Unknown = new List<BuildItemEntry>();
+            public readonly List<BuildDisplayRow> Rows = new List<BuildDisplayRow>();
         }
 
-        private sealed class BuildRingEntry
+        private sealed class BuildItemEntry
         {
             public string ID;
             public string Name;
-            public Rarity Rarity;
+            public BuildItemKind Kind;
             public Sprite Icon;
-            public int Picks;
+            public RogueLikeUpgradeSO Definition;
+            public int Acquisitions;
+            // Sum of the rarity multipliers of EVERY saved acquisition.
+            // Never substitute the last pick for the full item's modifier.
+            public float TotalRarityMultiplier;
+            public string Modifier;
+        }
+
+        private sealed class BuildDisplayRow
+        {
+            public string Heading;
+            public string Message;
+            public BuildItemEntry Item;
+        }
+
+        private sealed class BuildPageRange
+        {
+            public int Start;
+            public int End;
+            public float ContentHeight;
         }
 
         private void Awake()
@@ -524,30 +563,28 @@ namespace StonewardsPartyHUD
                     };
                     try
                     {
-                        // This object is maintained on the game's host for
-                        // each player; it is NOT a replicated client roster.
+                        // Server-owned per-player history includes both LEVELUP
+                        // and PICKUP choices. The global ActiveRunUpgrades list
+                        // belongs to the local player, NOT to this teammate.
                         RunPlayerData runData = player.RunPlayerData;
                         if (runData != null && runData.rogueUpgrades != null)
                         {
                             build.HasRunData = true;
+                            var byId = new Dictionary<string, BuildItemEntry>(
+                                StringComparer.Ordinal);
                             foreach (RogueUpgradeData saved in runData.rogueUpgrades)
                             {
-                                if (saved == null || string.IsNullOrWhiteSpace(saved.upgradeID))
+                                if (saved == null ||
+                                    string.IsNullOrWhiteSpace(saved.upgradeID))
                                     continue;
 
-                                // Separate rarity variants, so we never claim
-                                // a higher level from an unrelated rarity pick.
-                                BuildRingEntry existing = null;
-                                foreach (var ring in build.Rings)
-                                    if (ring.ID == saved.upgradeID && ring.Rarity == saved.rarity)
-                                    {
-                                        existing = ring;
-                                        break;
-                                    }
-
-                                if (existing != null)
+                                BuildItemEntry item;
+                                if (byId.TryGetValue(saved.upgradeID, out item))
                                 {
-                                    existing.Picks++;
+                                    item.Acquisitions++;
+                                    if (item.Definition != null)
+                                        item.TotalRarityMultiplier +=
+                                            item.Definition.GetBonusValuePerRarity(saved.rarity);
                                     continue;
                                 }
 
@@ -559,48 +596,84 @@ namespace StonewardsPartyHUD
                                 }
                                 catch
                                 {
-                                    // Missing definitions must not hide other
-                                    // correctly recorded rings from the host.
+                                    // Preserve the saved ID if its definition is missing.
                                 }
-                                string title = saved.upgradeID;
-                                Sprite icon = null;
+
+                                var kind = BuildItemKind.Unknown;
+                                if (definition != null)
+                                {
+                                    if (definition.UpgradeCategory == UpgradeCategory.LEVELUP)
+                                        kind = BuildItemKind.Ring;
+                                    else if (definition.UpgradeCategory == UpgradeCategory.PICKUP)
+                                        kind = BuildItemKind.Tome;
+                                }
+
+                                item = new BuildItemEntry
+                                {
+                                    ID = saved.upgradeID,
+                                    Name = saved.upgradeID,
+                                    Kind = kind,
+                                    Definition = definition,
+                                    Acquisitions = 1,
+                                    TotalRarityMultiplier = definition == null ? 0f :
+                                        definition.GetBonusValuePerRarity(saved.rarity)
+                                };
                                 if (definition != null)
                                 {
                                     try
                                     {
-                                        var localized = definition.GetLocalizedTitle();
+                                        string localized = definition.GetLocalizedTitle();
                                         if (!string.IsNullOrWhiteSpace(localized))
-                                            title = localized;
-                                        icon = definition.Icon;
+                                            item.Name = localized;
+                                        item.Icon = definition.Icon;
                                     }
                                     catch
                                     {
-                                        // Keep the precise upgrade ID visible
-                                        // if localization/assets are unavailable.
+                                        // The ID remains visible when localization fails.
                                     }
                                 }
-                                build.Rings.Add(new BuildRingEntry
-                                {
-                                    ID = saved.upgradeID,
-                                    Name = title,
-                                    Rarity = saved.rarity,
-                                    Icon = icon,
-                                    Picks = 1
-                                });
+
+                                byId.Add(item.ID, item);
+                                if (kind == BuildItemKind.Ring)
+                                    build.Rings.Add(item);
+                                else if (kind == BuildItemKind.Tome)
+                                    build.Tomes.Add(item);
+                                else
+                                    build.Unknown.Add(item);
                             }
+                            // Resolve one aggregate modifier per item, once
+                            // per refresh, rather than reformatting every GUI frame.
+                            foreach (var item in byId.Values)
+                                item.Modifier = GetBuildModifier(item);
                         }
                     }
                     catch (Exception ex)
                     {
                         build.HasRunData = false;
                         build.Rings.Clear();
+                        build.Tomes.Clear();
+                        build.Unknown.Clear();
                         if (Time.unscaledTime >= _nextWarning)
                         {
-                            Logger.LogWarning("Could not read ring build for " +
+                            Logger.LogWarning("Could not read build for " +
                                 build.Name + ": " + ex);
                             _nextWarning = Time.unscaledTime + 10f;
                         }
                     }
+                    // Build the view model only during the 0.8s refresh,
+                    // not on every IMGUI Repaint frame.
+                    if (build.HasRunData)
+                    {
+                        AppendBuildRows(build.Rows, "RINGS", build.Rings);
+                        AppendBuildRows(build.Rows, "TOMES", build.Tomes);
+                        if (build.Unknown.Count > 0)
+                            AppendBuildRows(build.Rows, "UNKNOWN UPGRADES", build.Unknown);
+                    }
+                    else
+                        build.Rows.Add(new BuildDisplayRow
+                        {
+                            Message = "BUILD DATA UNAVAILABLE"
+                        });
                     _buildPlayers.Add(build);
                 }
             }
@@ -622,6 +695,50 @@ namespace StonewardsPartyHUD
                         _buildPlayerIndex = i;
                         break;
                     }
+        }
+
+        private static string GetBuildModifier(BuildItemEntry item)
+        {
+            // Only character-stat effects use this exact additive formula.
+            // Other effects can have special/nonlinear behavior; do not guess.
+            if (item.Definition == null ||
+                !(item.Definition.Effect is UpgradeCharacterStatEffect) ||
+                UpgradeBaseValueField == null ||
+                item.TotalRarityMultiplier <= 0f)
+                return "—";
+
+            try
+            {
+                UpgradeEffect effect = item.Definition.Effect;
+                float baseValue = (float)UpgradeBaseValueField.GetValue(effect);
+                float totalBonus = baseValue * item.TotalRarityMultiplier;
+                if (float.IsNaN(totalBonus) || float.IsInfinity(totalBonus))
+                    return "—";
+
+                // Game formatter handles percent units and numeric precision.
+                // Pass the ITEM'S cumulative bonus rather than current host stats.
+                var format = effect.GetType().GetMethod("GetFormattedValue",
+                    BindingFlags.Instance | BindingFlags.NonPublic |
+                    BindingFlags.Public);
+                if (format == null)
+                    return "—";
+                string formatted = format.Invoke(effect,
+                    new object[] { totalBonus }) as string;
+                if (string.IsNullOrWhiteSpace(formatted))
+                    return "—";
+                formatted = System.Text.RegularExpressions.Regex
+                    .Replace(formatted, "<[^>]*>", "").Trim();
+                if (totalBonus > 0f && !formatted.StartsWith("+") &&
+                    !formatted.StartsWith("-"))
+                    formatted = "+" + formatted;
+                return formatted;
+            }
+            catch
+            {
+                // Unsupported effects display a dash, not another player's
+                // stats or the misleading modifier of the last selected pick.
+                return "—";
+            }
         }
 
         // Read-only client-side state. No Harmony patches, network messages or game mutations.
@@ -1475,13 +1592,26 @@ namespace StonewardsPartyHUD
                 if (repaint && _showBuilds && Mirror.NetworkServer.active &&
                     Mirror.NetworkClient.active && _enableBuildInspector.Value)
                 {
-                    // Separate optional window, adjacent to the normal HUD.
-                    // Keep it on-screen when the HUD is moved by the user.
+                    // Fit visible rows, not a fixed empty frame. Grow until the
+                    // screen budget is reached, then paginate long builds.
+                    float pageBudget = Mathf.Max(100f, Mathf.Min(
+                        BuildMaxWindowHeight, screenHeight - 16f) -
+                        BuildHeaderHeight - BuildFooterHeight);
+                    List<BuildDisplayRow> rows = _buildPlayers.Count > 0
+                        ? _buildPlayers[Mathf.Clamp(_buildPlayerIndex, 0,
+                            _buildPlayers.Count - 1)].Rows : null;
+                    var pages = PaginateBuildRows(rows, pageBudget);
+                    _buildPage = Mathf.Clamp(_buildPage, 0, pages.Count - 1);
+                    BuildPageRange visible = pages[_buildPage];
+                    float detailsHeight = Mathf.Max(250f,
+                        BuildHeaderHeight + visible.ContentHeight +
+                        BuildFooterHeight);
                     float detailsX = Mathf.Clamp(x + PanelWidth + 12f, 8f,
                         Mathf.Max(8f, screenWidth - BuildWindowWidth - 8f));
                     float detailsY = Mathf.Clamp(y, 8f,
-                        Mathf.Max(8f, screenHeight - BuildWindowHeight - 8f));
-                    DrawBuildInspector(detailsX, detailsY);
+                        Mathf.Max(8f, screenHeight - detailsHeight - 8f));
+                    DrawBuildInspector(detailsX, detailsY, detailsHeight,
+                        visible, pages.Count);
                 }
             }
             finally
@@ -2003,9 +2133,73 @@ namespace StonewardsPartyHUD
             _settingsNotice = "DEFAULT HOTKEYS RESTORED";
         }
 
-        private void DrawBuildInspector(float x, float y)
+        private static void AppendBuildRows(List<BuildDisplayRow> rows,
+            string heading, List<BuildItemEntry> items)
         {
-            DrawStonewardsWindow(x, y, BuildWindowWidth, BuildWindowHeight);
+            rows.Add(new BuildDisplayRow
+            {
+                Heading = heading + "  (" + items.Count + ")"
+            });
+            if (items.Count == 0)
+                rows.Add(new BuildDisplayRow { Message = "NONE RECORDED" });
+            else
+                for (int i = 0; i < items.Count; i++)
+                    rows.Add(new BuildDisplayRow { Item = items[i] });
+        }
+
+        private static float BuildDisplayRowHeight(BuildDisplayRow row)
+        {
+            if (row.Heading != null)
+                return BuildSectionRowHeight;
+            return row.Item != null ? BuildItemRowHeight : BuildMessageRowHeight;
+        }
+
+        private static List<BuildPageRange> PaginateBuildRows(
+            List<BuildDisplayRow> rows, float maxContentHeight)
+        {
+            var pages = new List<BuildPageRange>();
+            if (rows == null || rows.Count == 0)
+            {
+                pages.Add(new BuildPageRange());
+                return pages;
+            }
+
+            int first = 0;
+            float height = 0f;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                float next = BuildDisplayRowHeight(rows[i]);
+                // A category heading must stay with at least its first row.
+                float required = next;
+                if (rows[i].Heading != null && i + 1 < rows.Count)
+                    required += BuildDisplayRowHeight(rows[i + 1]);
+
+                if (i > first && height + required > maxContentHeight)
+                {
+                    pages.Add(new BuildPageRange
+                    {
+                        Start = first,
+                        End = i,
+                        ContentHeight = height
+                    });
+                    first = i;
+                    height = 0f;
+                }
+                height += next;
+            }
+            pages.Add(new BuildPageRange
+            {
+                Start = first,
+                End = rows.Count,
+                ContentHeight = height
+            });
+            return pages;
+        }
+
+        private void DrawBuildInspector(float x, float y,
+            float height, BuildPageRange page, int totalPages)
+        {
+            DrawStonewardsWindow(x, y, BuildWindowWidth, height);
             GUI.Label(new Rect(x + 12f, y + 2f, BuildWindowWidth - 24f, 29f),
                 "PLAYER BUILD", _headingStyle);
 
@@ -2016,9 +2210,9 @@ namespace StonewardsPartyHUD
                     "NO TEAMMATES TO INSPECT", _buildNameStyle);
                 GUI.Label(new Rect(x + 18f, y + 103f,
                     BuildWindowWidth - 36f, 30f),
-                    "Only the hosting player can inspect party rings.",
+                    "Only the host can inspect teammate builds.",
                     _buildDetailStyle);
-                GUI.Label(new Rect(x + 16f, y + BuildWindowHeight - 28f,
+                GUI.Label(new Rect(x + 16f, y + height - 28f,
                     BuildWindowWidth - 32f, 18f),
                     FitText(ShortcutLabel(_toggleBuildInspectorShortcut.Value) +
                         " CLOSE", _buildHelpStyle, BuildWindowWidth - 32f),
@@ -2029,10 +2223,6 @@ namespace StonewardsPartyHUD
             _buildPlayerIndex = Mathf.Clamp(_buildPlayerIndex, 0,
                 _buildPlayers.Count - 1);
             var selected = _buildPlayers[_buildPlayerIndex];
-            int totalPages = Mathf.Max(1,
-                (selected.Rings.Count + BuildRingsPerPage - 1) / BuildRingsPerPage);
-            _buildPage = Mathf.Clamp(_buildPage, 0, totalPages - 1);
-
             GUI.Label(new Rect(x + 18f, y + 53f, BuildWindowWidth - 105f, 26f),
                 FitText(selected.Name, _buildNameStyle, BuildWindowWidth - 105f),
                 _buildNameStyle);
@@ -2040,78 +2230,90 @@ namespace StonewardsPartyHUD
                 (_buildPlayerIndex + 1) + " / " + _buildPlayers.Count,
                 _countStyle);
 
-            string summary = !selected.HasRunData
-                ? "BUILD DATA UNAVAILABLE"
-                : selected.Rings.Count == 0 ? "NO RINGS RECORDED"
-                    : selected.Rings.Count + " RING VARIANTS";
+            string summary = !selected.HasRunData ? "BUILD DATA UNAVAILABLE"
+                : selected.Rings.Count + " RINGS  |  " +
+                    selected.Tomes.Count + " TOMES" +
+                    (selected.Unknown.Count > 0
+                        ? "  |  " + selected.Unknown.Count + " UNKNOWN" : "");
             GUI.Label(new Rect(x + 18f, y + 80f, BuildWindowWidth - 36f, 23f),
-                summary, _buildDetailStyle);
-            Fill(new Rect(x + 12f, y + 108f, BuildWindowWidth - 24f, 1f),
-                PanelDivider);
+                FitText(summary, _buildDetailStyle, BuildWindowWidth - 36f),
+                _buildDetailStyle);
+            Fill(new Rect(x + 12f, y + 108f,
+                BuildWindowWidth - 24f, 1f), PanelDivider);
 
-            if (selected.HasRunData)
+            float rowY = y + BuildHeaderHeight;
+            for (int i = page.Start; i < page.End; i++)
             {
-                int start = _buildPage * BuildRingsPerPage;
-                int end = Math.Min(start + BuildRingsPerPage, selected.Rings.Count);
-                for (int i = start; i < end; i++)
+                var row = selected.Rows[i];
+                if (row.Heading != null)
                 {
-                    var ring = selected.Rings[i];
-                    float rowY = y + 112f + (i - start) * BuildRingRowHeight;
-                    if ((i - start) % 2 == 1)
-                        Fill(new Rect(x + 11f, rowY, BuildWindowWidth - 22f,
-                            BuildRingRowHeight),
-                            new Color(0.30f, 0.33f, 0.39f, 0.14f));
-
-                    Color rarityColor = GetRingRarityColor(ring.Rarity);
-                    Fill(new Rect(x + 15f, rowY + 7f, 3f, 30f), rarityColor);
-                    Fill(new Rect(x + 23f, rowY + 5f, 33f, 33f),
-                        SlotBackground);
-                    if (!DrawClassIcon(ring.Icon,
-                        new Rect(x + 26f, rowY + 8f, 27f, 27f)))
-                        Fill(new Rect(x + 31f, rowY + 13f, 17f, 17f),
-                            rarityColor);
-
-                    GUI.Label(new Rect(x + 64f, rowY + 2f,
-                        BuildWindowWidth - 135f, 23f),
-                        FitText(ring.Name, _buildNameStyle,
-                            BuildWindowWidth - 135f), _buildNameStyle);
-                    _buildEffectStyle.normal.textColor = rarityColor;
-                    GUI.Label(new Rect(x + 64f, rowY + 23f,
-                        BuildWindowWidth - 140f, 18f),
-                        ring.Rarity.ToString(), _buildEffectStyle);
-                    GUI.Label(new Rect(x + BuildWindowWidth - 63f, rowY + 8f,
-                        48f, 25f), "x" + ring.Picks, _buildLevelStyle);
+                    Fill(new Rect(x + 12f, rowY + 1f,
+                        BuildWindowWidth - 24f, BuildSectionRowHeight - 2f),
+                        PanelHeader);
+                    GUI.Label(new Rect(x + 20f, rowY + 4f,
+                        BuildWindowWidth - 40f, 26f),
+                        row.Heading, _buildNameStyle);
                 }
+                else if (row.Item != null)
+                    DrawBuildItem(x, rowY, row.Item, i - page.Start);
+                else
+                    GUI.Label(new Rect(x + 24f, rowY + 8f,
+                        BuildWindowWidth - 48f, 22f),
+                        row.Message, _buildDetailStyle);
+                rowY += BuildDisplayRowHeight(row);
             }
 
-            Fill(new Rect(x + 12f, y + BuildWindowHeight - 56f,
+            Fill(new Rect(x + 12f, y + height - 56f,
                 BuildWindowWidth - 24f, 1f), PanelDivider);
-            _buildHelpStyle.normal.textColor = new Color(0.92f, 0.83f, 0.70f);
-            string playerHotkeys = ShortcutLabel(_toggleBuildInspectorShortcut.Value) +
-                " CLOSE   " + ShortcutLabel(_nextBuildPlayerShortcut.Value) + " PLAYER";
-            string pageHotkeys = ShortcutLabel(_previousBuildPageShortcut.Value) +
-                " PREV   " + ShortcutLabel(_nextBuildPageShortcut.Value) +
-                " NEXT   " + (_buildPage + 1) + "/" + totalPages;
-            GUI.Label(new Rect(x + 15f, y + BuildWindowHeight - 51f,
+            string playerHotkeys =
+                ShortcutLabel(_toggleBuildInspectorShortcut.Value) + " CLOSE   " +
+                ShortcutLabel(_nextBuildPlayerShortcut.Value) + " PLAYER";
+            string pageHotkeys =
+                ShortcutLabel(_previousBuildPageShortcut.Value) + " PREV   " +
+                ShortcutLabel(_nextBuildPageShortcut.Value) + " NEXT   " +
+                (_buildPage + 1) + "/" + totalPages;
+            GUI.Label(new Rect(x + 15f, y + height - 51f,
                 BuildWindowWidth - 29f, 18f),
                 FitText(playerHotkeys, _buildHelpStyle, BuildWindowWidth - 29f),
                 _buildHelpStyle);
-            GUI.Label(new Rect(x + 15f, y + BuildWindowHeight - 28f,
+            GUI.Label(new Rect(x + 15f, y + height - 28f,
                 BuildWindowWidth - 29f, 18f),
                 FitText(pageHotkeys, _buildHelpStyle, BuildWindowWidth - 29f),
                 _buildHelpStyle);
         }
 
-        private static Color GetRingRarityColor(Rarity rarity)
+        private void DrawBuildItem(float x, float rowY,
+            BuildItemEntry item, int visibleIndex)
         {
-            switch (rarity)
-            {
-                case Rarity.UNCOMMON: return new Color(0.44f, 0.84f, 0.54f);
-                case Rarity.RARE: return new Color(0.46f, 0.73f, 0.99f);
-                case Rarity.EPIC: return new Color(0.76f, 0.53f, 0.96f);
-                case Rarity.LEGENDARY: return new Color(1f, 0.77f, 0.37f);
-                default: return new Color(0.85f, 0.84f, 0.82f);
-            }
+            if (visibleIndex % 2 == 1)
+                Fill(new Rect(x + 11f, rowY, BuildWindowWidth - 22f,
+                    BuildItemRowHeight),
+                    new Color(0.30f, 0.33f, 0.39f, 0.14f));
+
+            // Single compact line: icon | name | total item modifier | level.
+            // No "LAST" field, rarity history, or next-value preview.
+            Fill(new Rect(x + 15f, rowY + 6f, 3f, 26f), PanelFrame);
+            Fill(new Rect(x + 24f, rowY + 4f, 30f, 30f), SlotBackground);
+            if (!DrawClassIcon(item.Icon,
+                new Rect(x + 27f, rowY + 7f, 24f, 24f)))
+                Fill(new Rect(x + 33f, rowY + 13f, 12f, 12f),
+                    PanelFrame);
+
+            const float nameWidth = 214f;
+            GUI.Label(new Rect(x + 64f, rowY + 3f, nameWidth, 30f),
+                FitText(item.Name, _buildNameStyle, nameWidth),
+                _buildNameStyle);
+
+            const float modifierWidth = 152f;
+            GUI.Label(new Rect(x + 289f, rowY + 3f, modifierWidth, 30f),
+                FitText(item.Modifier ?? "—", _buildEffectStyle,
+                    modifierWidth), _buildEffectStyle);
+
+            string count = item.Kind == BuildItemKind.Ring
+                ? "LVL " + item.Acquisitions
+                : item.Acquisitions > 1 ? "x" + item.Acquisitions : "";
+            GUI.Label(new Rect(x + BuildWindowWidth - 88f, rowY + 3f,
+                72f, 30f), count, _buildLevelStyle);
         }
 
         private static void DrawStonewardsWindow(float x, float y,
@@ -2371,9 +2573,8 @@ namespace StonewardsPartyHUD
                     TextAnchor.MiddleLeft, true);
                 _buildDetailStyle = MakeStyle(12,
                     new Color(0.88f, 0.84f, 0.77f), TextAnchor.MiddleLeft, true);
-                // Use inspector-only styles so regular HUD HP and other labels stay unchanged.
                 _buildEffectStyle = MakeStyle(13,
-                    new Color(0.88f, 0.84f, 0.77f), TextAnchor.MiddleLeft, true);
+                    new Color(0.88f, 0.84f, 0.77f), TextAnchor.MiddleLeft, false);
                 _buildLevelStyle = MakeStyle(14, Color.white, TextAnchor.MiddleRight, true);
                 _buildHelpStyle = MakeStyle(11,
                     new Color(0.93f, 0.84f, 0.69f), TextAnchor.MiddleLeft, true);
@@ -2427,7 +2628,8 @@ namespace StonewardsPartyHUD
                 _badgeStyle, _healthStyle, _statusStyle, _companionStyle,
                 _alertStyle, _wallStatusStyle, _pingStyle,
                 _buildNameStyle, _buildDetailStyle, _buildEffectStyle,
-                _buildLevelStyle, _buildHelpStyle, _settingsButtonStyle, _settingsValueStyle, _settingsStepStyle,
+                _buildLevelStyle, _buildHelpStyle,
+                _settingsButtonStyle, _settingsValueStyle, _settingsStepStyle,
                 _hudActionLabelStyle, _hudShortcutStyle
             };
             foreach (var style in styles)

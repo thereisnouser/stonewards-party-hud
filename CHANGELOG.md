@@ -2,13 +2,18 @@
 
 ## 0.4.2
 
+### Added
+- Rebuilt the host-only Build Inspector around an inventory-style view with separate **RINGS** and **TOMES** sections.
+- Display upgrade icons, names, levels or stack counts, and cumulative stat modifiers for supported upgrade effects.
+- Show unknown upgrades separately; resize and paginate the inspector to fit the available content.
+
 ### Improved
-- Slightly increased the font size of ring rarity labels and pick counts in the host build inspector for better readability.
-- Gave these labels dedicated text styles so health values and other HUD text remain unchanged.
+- Slightly enlarged modifier and level text (native font sizes 16 and 17) without changing normal HUD health text.
 
 ### Notes
-- No gameplay, networking, or configuration changes.
-- PartyHUD remains client-side; host-only tools keep their existing restrictions.
+- Unsupported or nonlinear upgrade effects show `—` instead of an unverified numeric value.
+- The build inspector and connection ping remain host-only; teammates do not need this mod.
+- Final multiplayer/inventory correctness and packaged Thunderstore installation still require gameplay verification.
 
 ## 0.4.1
 

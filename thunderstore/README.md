@@ -7,7 +7,7 @@
 - **Party status** — player names, class icons, current/max HP, and downed state.
 - **Teammate tracking** — outlines and floating names, optionally visible through walls.
 - **Extra health** — Hunter companion, defensive wall, and King health when available.
-- **Host tools** — view teammates' rings, rarities, pick counts, and available ping measurements.
+- **Host tools** — view teammates' rings and tomes, supported modifiers, levels/stack counts, and available ping measurements.
 - **In-game settings** — customize displayed elements, panel size/position, and shortcuts.
 - **Screen-aware layout** — automatic resolution scaling with adjustable offsets.
 
@@ -18,9 +18,9 @@ The HUD appears automatically when players join a session. Use these default sho
 | Key | Action |
 | --- | --- |
 | `F7` | Open/close PartyHUD settings |
-| `F8` | Open/close ring builds (host only) |
+| `F8` | Open/close build inspector (host only) |
 | `F9` | Next player in the build inspector |
-| `PageUp` / `PageDown` | Previous / next ring page |
+| `PageUp` / `PageDown` | Previous / next build page |
 
 The **SETTINGS** and **BUILDS** labels in the HUD header can also be clicked when the game cursor is unlocked.
 
@@ -42,7 +42,7 @@ Install [PartyHUD](https://thunderstore.io/c/stonewards/p/thereisnouser/PartyHUD
 
 ## ⚠️ Known limitations
 
-King HP is shown only when readable King health data is available in the installed game version. Ping is shown only when the host has a valid connection measurement; guests cannot inspect teammates' ring builds.
+King HP appears only when the game exposes readable health data. Ping requires a valid host-side measurement. Only the host can inspect teammates' ring/tome builds; unsupported modifier types display `—` instead of estimates.
 
 ## 🔗 Links
 

@@ -7,7 +7,7 @@
 - **Party status** — player names, class icons, current/max HP, and downed state in one panel.
 - **Teammate tracking** — optional outlines and floating names, including visibility through walls.
 - **Extra health** — Hunter companion health, defensive wall durability, and King HP when the game exposes it.
-- **Host tools** — inspect teammates' rings, rarities, and pick counts; see available connection RTT measurements in milliseconds.
+- **Host tools** — inspect teammates' rings and tomes, supported cumulative modifiers, levels or stack counts; see available connection RTT measurements in milliseconds.
 - **In-game settings** — change display options, adjust HUD size and placement, and rebind shortcuts without leaving the game.
 - **Adaptive layout** — resolution-aware scaling, configurable offsets, and a compact interface styled after Stonewards.
 
@@ -20,10 +20,10 @@ The party panel appears automatically when players are present in a session. It 
 | Default key | Action |
 | --- | --- |
 | `F7` | Open or close PartyHUD settings |
-| `F8` | Open or close the ring build inspector (host only) |
+| `F8` | Open or close the build inspector (host only) |
 | `F9` | Select the next player in the build inspector |
-| `PageUp` | Show the previous ring page |
-| `PageDown` | Show the next ring page |
+| `PageUp` | Show the previous build page |
+| `PageDown` | Show the next build page |
 
 The HUD also includes **SETTINGS** and **BUILDS** shortcuts in its header. They can be clicked when the in-game cursor is already unlocked. The build inspector and per-player ping information are available only to the host.
 
@@ -66,7 +66,7 @@ Only the player who wants the overlay needs to install it. If you are using a cu
 
 - **King health** is displayed only when the installed game build exposes readable current/max King HP data.
 - **Connection ping** uses measurements available to the host; a value is omitted if the game/network layer does not provide a valid sample.
-- **Ring inspection** uses host-side run data, so ordinary clients cannot inspect other players' builds through this mod.
+- **Build inspection** uses host-side run data; ordinary clients cannot inspect other players' builds. Unknown upgrades appear separately and unsupported/nonlinear modifiers display `—` rather than an estimated value.
 
 ## 🛠️ Development
 
