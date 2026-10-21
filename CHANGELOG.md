@@ -2,6 +2,10 @@
 
 ## 0.5.0
 
+### Fixed
+- Guard teammate outline initialization until character skin/equipment materials are stable; immediately detach outline passes when the game replaces them (for example, after ally-hit feedback).
+- Stop reattaching an outline to a visual model after its materials were taken over by the game, preventing repeated shader/material conflicts until that model is replaced or outlines are manually reset.
+
 ### Added
 - Rebuilt the host-only Build Inspector around an inventory-style view with separate **RINGS** and **TOMES** sections.
 - Display upgrade icons, names, levels or stack counts, and cumulative stat modifiers for supported upgrade effects.
