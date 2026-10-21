@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.2
+
+### Improved
+- Slightly increased the font size of ring rarity labels and pick counts in the host build inspector for better readability.
+- Gave these labels dedicated text styles so health values and other HUD text remain unchanged.
+
+### Notes
+- No gameplay, networking, or configuration changes.
+- PartyHUD remains client-side; host-only tools keep their existing restrictions.
+
 ## 0.4.1
 
 ### Changed
