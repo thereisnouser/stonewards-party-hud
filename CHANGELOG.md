@@ -3,8 +3,9 @@
 ## 0.5.0
 
 ### Fixed
-- Guard teammate outline initialization until character skin/equipment materials are stable; immediately detach outline passes when the game replaces them (for example, after ally-hit feedback).
-- Stop reattaching an outline to a visual model after its materials were taken over by the game, preventing repeated shader/material conflicts until that model is replaced or outlines are manually reset.
+- Restored teammate outlines after material-stability gating prevented them from appearing.
+- Decoupled teammate nickname labels from outlines, so they stay visible even if QuickOutline cannot initialize.
+- Disable outline components immediately before removing them from teammate meshes.
 
 ### Added
 - Rebuilt the host-only Build Inspector around an inventory-style view with separate **RINGS** and **TOMES** sections.

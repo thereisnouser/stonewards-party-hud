@@ -88,13 +88,6 @@ namespace StonewardsPartyHUD
         private readonly Dictionary<FirstPersonController, OutlineEntry> _teamOutlines =
             new Dictionary<FirstPersonController, OutlineEntry>();
         private readonly List<FirstPersonController> _expiredOutlines = new List<FirstPersonController>();
-        // Do not modify renderers immediately after a networked character spawns.
-        private readonly Dictionary<FirstPersonController, OutlineCandidate> _outlineCandidates =
-            new Dictionary<FirstPersonController, OutlineCandidate>();
-        // A damage/skin update can replace QuickOutline's material passes. Never
-        // fight the game for ownership of those materials on the same visual root.
-        private readonly Dictionary<FirstPersonController, GameObject> _outlineSuspended =
-            new Dictionary<FirstPersonController, GameObject>();
         // Read the host's existing server-side run data; never send network
         // messages or assume an ordinary client can inspect other builds.
         private readonly List<PlayerBuildEntry> _buildPlayers = new List<PlayerBuildEntry>();
@@ -241,14 +234,6 @@ namespace StonewardsPartyHUD
             public QuickOutline Component;
             public Renderer[] Renderers;
             public float NextMaterialCheck;
-        }
-
-        private sealed class OutlineCandidate
-        {
-            public GameObject VisualRoot;
-            public Renderer[] Renderers;
-            public Material[][] BaseMaterials;
-            public float ReadyAt;
         }
 
         private sealed class CompanionEntry
@@ -1033,9 +1018,6 @@ namespace StonewardsPartyHUD
                 if (!(renderer is MeshRenderer) &&
                     !(renderer is SkinnedMeshRenderer))
                     continue;
-                // Hidden/equipment meshes may still be changing their materials.
-                if (!renderer.enabled || !renderer.gameObject.activeInHierarchy)
-                    continue;
 
                 var materials = renderer.sharedMaterials;
                 if (materials == null || materials.Length == 0)
@@ -1075,34 +1057,6 @@ namespace StonewardsPartyHUD
                 if (previous[i] == null || previous[i] != current[i])
                     return false;
 
-            return true;
-        }
-
-        private static Material[][] CaptureRendererMaterials(Renderer[] renderers)
-        {
-            var snapshots = new Material[renderers.Length][];
-            for (int i = 0; i < renderers.Length; i++)
-                snapshots[i] = renderers[i].sharedMaterials;
-            return snapshots;
-        }
-
-        private static bool SameRendererMaterials(OutlineCandidate candidate,
-            Renderer[] current)
-        {
-            if (!SameRenderers(candidate.Renderers, current))
-                return false;
-
-            for (int i = 0; i < current.Length; i++)
-            {
-                var original = candidate.BaseMaterials[i];
-                var active = current[i].sharedMaterials;
-                if (original == null || active == null || original.Length != active.Length)
-                    return false;
-
-                for (int j = 0; j < active.Length; j++)
-                    if (original[j] != active[j] || !IsShaderUsable(active[j]))
-                        return false;
-            }
             return true;
         }
 
@@ -1177,29 +1131,6 @@ namespace StonewardsPartyHUD
                     RemoveOutline(player);
                 _expiredOutlines.Clear();
 
-                // Forget pending/suspended visuals when a player disconnects or
-                // the game creates a replacement character model.
-                foreach (var pending in _outlineCandidates)
-                {
-                    var player = pending.Key;
-                    if (player == null || !roster.Contains(player) ||
-                        FindCharacterVisuals(player) != pending.Value.VisualRoot)
-                        _expiredOutlines.Add(player);
-                }
-                foreach (var player in _expiredOutlines)
-                    _outlineCandidates.Remove(player);
-                _expiredOutlines.Clear();
-                foreach (var suspended in _outlineSuspended)
-                {
-                    var player = suspended.Key;
-                    if (player == null || !roster.Contains(player) ||
-                        FindCharacterVisuals(player) != suspended.Value)
-                        _expiredOutlines.Add(player);
-                }
-                foreach (var player in _expiredOutlines)
-                    _outlineSuspended.Remove(player);
-                _expiredOutlines.Clear();
-
                 for (int i = 0; i < roster.Count; i++)
                 {
                     var player = roster[i];
@@ -1208,11 +1139,6 @@ namespace StonewardsPartyHUD
 
                     var root = FindCharacterVisuals(player);
                     if (root == null || !root.activeInHierarchy)
-                        continue;
-
-                    GameObject suspendedRoot;
-                    if (_outlineSuspended.TryGetValue(player, out suspendedRoot) &&
-                        suspendedRoot == root)
                         continue;
 
                     var renderers = FindOutlineRenderers(root);
@@ -1240,28 +1166,6 @@ namespace StonewardsPartyHUD
                         // Never overwrite an outline that belongs to the game or another mod.
                         if (root.GetComponent<QuickOutline>() != null)
                             continue;
-
-                        // A newly spawned character may still be applying its
-                        // skin/equipment materials. Wait until the actual material
-                        // references stay unchanged for 1.5 seconds before adding
-                        // any outline passes. Damage feedback can also rebuild them.
-                        OutlineCandidate candidate;
-                        if (!_outlineCandidates.TryGetValue(player, out candidate) ||
-                            candidate.VisualRoot != root ||
-                            !SameRendererMaterials(candidate, renderers))
-                        {
-                            _outlineCandidates[player] = new OutlineCandidate
-                            {
-                                VisualRoot = root,
-                                Renderers = renderers,
-                                BaseMaterials = CaptureRendererMaterials(renderers),
-                                ReadyAt = Time.unscaledTime + 1.5f
-                            };
-                            continue;
-                        }
-                        if (Time.unscaledTime < candidate.ReadyAt)
-                            continue;
-                        _outlineCandidates.Remove(player);
 
                         var outline = root.AddComponent<QuickOutline>();
                         if (outline == null)
@@ -1340,13 +1244,9 @@ namespace StonewardsPartyHUD
                         entry.NextMaterialCheck = Time.unscaledTime + 2f;
                         if (IsOutlineMaterialMissing(entry))
                         {
-                            // The game (including ally-hit feedback) owns the
-                            // newly assigned skin materials. Retire our outline
-                            // immediately, and do not re-apply it to this model.
-                            _outlineSuspended[player] = root;
-                            Logger.LogWarning("Suspended teammate outline after " +
-                                "the game replaced character materials: " +
-                                player.NetworkplayerName);
+                            // Do not toggle an outline against a renderer whose
+                            // materials were swapped in-game: retire it cleanly
+                            // and rebuild with a fresh compatible mesh list.
                             RemoveOutline(player);
                             continue;
                         }
@@ -1379,8 +1279,6 @@ namespace StonewardsPartyHUD
             {
                 if (entry.Component != null)
                 {
-                    // OnDisable removes our extra material passes synchronously;
-                    // Destroy alone is deferred until the end of the frame.
                     entry.Component.enabled = false;
                     Destroy(entry.Component);
                 }
@@ -1390,6 +1288,9 @@ namespace StonewardsPartyHUD
 
         private void RemoveAllOutlines()
         {
+            if (_teamOutlines.Count == 0)
+                return;
+
             foreach (var entry in _teamOutlines.Values)
                 if (entry.Component != null)
                 {
@@ -1397,8 +1298,6 @@ namespace StonewardsPartyHUD
                     Destroy(entry.Component);
                 }
             _teamOutlines.Clear();
-            _outlineCandidates.Clear();
-            _outlineSuspended.Clear();
             _expiredOutlines.Clear();
         }
 
@@ -1406,8 +1305,13 @@ namespace StonewardsPartyHUD
         {
             // Labels are drawn in screen space, so they remain legible through
             // terrain without modifying world materials or network state.
-            if (!_showTeammateOutlines.Value || !_showPlayerNames.Value ||
-                _teamOutlines.Count == 0)
+            if (!_showPlayerNames.Value)
+                return;
+
+            // Name rendering should not depend on whether QuickOutline was
+            // successfully created. Query actual players rather than outlines.
+            var roster = FirstPersonController.LocalPlayers;
+            if (roster == null || roster.Count == 0)
                 return;
 
             Camera camera = Camera.main;
@@ -1417,23 +1321,29 @@ namespace StonewardsPartyHUD
             Color previous = GUI.color;
             try
             {
-                foreach (var pair in _teamOutlines)
+                foreach (var player in roster)
                 {
-                    var player = pair.Key;
-                    var outline = pair.Value;
-                    if (player == null || player.isLocalPlayer || outline.Component == null ||
-                        outline.VisualRoot == null || !outline.VisualRoot.activeInHierarchy ||
-                        outline.Renderers == null)
+                    if (player == null || player.isLocalPlayer)
                         continue;
+
+                    var root = FindCharacterVisuals(player);
+                    if (root == null || !root.activeInHierarchy)
+                        continue;
+
+                    // World-space nicknames use character body meshes, not
+                    // QuickOutline renderers or shared-material validity.
+                    var renderers = root.GetComponentsInChildren<Renderer>();
 
                     // Renderer bounds follow the animated character. Avoid using
                     // a fixed height offset, which varies by character model.
                     bool found = false;
                     Bounds bounds = default(Bounds);
-                    foreach (var renderer in outline.Renderers)
+                    foreach (var renderer in renderers)
                     {
                         if (renderer == null || !renderer.enabled ||
-                            !renderer.gameObject.activeInHierarchy)
+                            !renderer.gameObject.activeInHierarchy ||
+                            (!(renderer is SkinnedMeshRenderer) &&
+                             !(renderer is MeshRenderer)))
                             continue;
 
                         if (!found)
