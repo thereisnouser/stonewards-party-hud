@@ -88,6 +88,9 @@ namespace StonewardsPartyHUD
         private readonly Dictionary<FirstPersonController, OutlineEntry> _teamOutlines =
             new Dictionary<FirstPersonController, OutlineEntry>();
         private readonly List<FirstPersonController> _expiredOutlines = new List<FirstPersonController>();
+        // Render modern outlines in a separate camera pass instead of mutating
+        // player skin materials. The legacy QuickOutline path is opt-in only.
+        private readonly SafeWorldOutlines _safeWorldOutlines = new SafeWorldOutlines();
         // Read the host's existing server-side run data; never send network
         // messages or assume an ordinary client can inspect other builds.
         private readonly List<PlayerBuildEntry> _buildPlayers = new List<PlayerBuildEntry>();
@@ -157,6 +160,7 @@ namespace StonewardsPartyHUD
         private ConfigEntry<KeyboardShortcut> _nextBuildPageShortcut;
         private ConfigEntry<KeyboardShortcut> _previousBuildPageShortcut;
         private ConfigEntry<bool> _showTeammateOutlines;
+        private ConfigEntry<bool> _safeOutlineRendering;
         private ConfigEntry<bool> _showPlayerNames;
         private ConfigEntry<float> _playerNameVerticalOffset;
         private ConfigEntry<bool> _outlinesThroughWalls;
@@ -327,6 +331,9 @@ namespace StonewardsPartyHUD
                 "Show the previous page of rings in the build inspector.");
             _showTeammateOutlines = Config.Bind("TeammateOutlines", "Enabled", true,
                 "Outline remote teammates in the world (never the local player).");
+            _safeOutlineRendering = Config.Bind("TeammateOutlines", "SafeRendering", true,
+                "Draw outlines in a separate camera pass without adding materials " +
+                "to player characters. Set false only to test the legacy QuickOutline path.");
             _showPlayerNames = Config.Bind("TeammateOutlines", "ShowPlayerNames", true,
                 "Show each remote teammate's nickname near their outlined character.");
             _playerNameVerticalOffset = Config.Bind("TeammateOutlines", "PlayerNameVerticalOffset", 14f,
@@ -371,6 +378,7 @@ namespace StonewardsPartyHUD
             if (!_enabled.Value)
             {
                 RemoveAllOutlines();
+                _safeWorldOutlines.Clear();
                 CloseBuildInspector();
                 return;
             }
@@ -411,7 +419,39 @@ namespace StonewardsPartyHUD
             RefreshRoster();
             RefreshWallHealth();
             RefreshKingHealth();
-            UpdateTeammateOutlines();
+            if (!_showTeammateOutlines.Value)
+            {
+                _safeWorldOutlines.Clear();
+                RemoveAllOutlines();
+            }
+            else if (_safeOutlineRendering.Value)
+            {
+                // Legacy QuickOutline was changing player materials in place
+                // and sometimes left a magenta skin after gameplay hit effects.
+                RemoveAllOutlines();
+                try
+                {
+                    _safeWorldOutlines.Refresh(FirstPersonController.LocalPlayers,
+                        FindCharacterVisuals, _outlinesThroughWalls.Value,
+                        Mathf.Clamp(_outlineWidth.Value, 0.5f, 6f),
+                        message => Logger.LogInfo(message),
+                        message => Logger.LogWarning(message));
+                }
+                catch (Exception ex)
+                {
+                    _safeWorldOutlines.Clear();
+                    if (Time.unscaledTime >= _nextWarning)
+                    {
+                        Logger.LogWarning("Safe teammate outline rendering failed: " + ex);
+                        _nextWarning = Time.unscaledTime + 10f;
+                    }
+                }
+            }
+            else
+            {
+                _safeWorldOutlines.Clear();
+                UpdateTeammateOutlines();
+            }
             if (_showBuilds && Time.unscaledTime >= _nextBuildRefresh)
             {
                 _nextBuildRefresh = Time.unscaledTime + 0.8f;
@@ -423,6 +463,7 @@ namespace StonewardsPartyHUD
         {
             CloseSettings();
             RemoveAllOutlines();
+            _safeWorldOutlines.Clear();
             CloseBuildInspector();
         }
 
@@ -430,6 +471,7 @@ namespace StonewardsPartyHUD
         {
             CloseSettings();
             RemoveAllOutlines();
+            _safeWorldOutlines.Dispose();
             CloseBuildInspector();
         }
 

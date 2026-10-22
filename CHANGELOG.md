@@ -2,6 +2,11 @@
 
 ## 0.5.0
 
+### Experimental outline rendering
+- Added non-invasive camera-command-buffer rendering for teammate outlines. It uses Stonewards' outline mask/fill shaders without inserting additional materials into a character's own renderers.
+- Defaults to `TeammateOutlines.SafeRendering = true`; legacy `QuickOutline` can be explicitly enabled for comparison through the BepInEx config.
+- This is an unverified fix for intermittent outlines and magenta player skins. Validate in game before publishing 0.5.0.
+
 ### Fixed
 - Restored teammate outlines after material-stability gating prevented them from appearing.
 - Decoupled teammate nickname labels from outlines, so they stay visible even if QuickOutline cannot initialize.
