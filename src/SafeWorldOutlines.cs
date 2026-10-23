@@ -13,6 +13,12 @@ namespace StonewardsPartyHUD
         private const CameraEvent OutlineEvent = CameraEvent.AfterForwardAlpha;
         private Camera _camera;
         private CommandBuffer _commands;
+        private bool _usingSrp;
+        private bool _srpSubscribed;
+        private bool _loggedSrpExecution;
+        private float _srpAttachedAt;
+        private float _lastSrpExecution;
+        private float _nextSrpWarning;
         private Material _mask;
         private Material _fill;
         private Material _downedFill;
@@ -85,14 +91,24 @@ namespace StonewardsPartyHUD
 
         private void DetachCamera()
         {
-            if (_commands == null)
-                return;
-            if (_camera != null)
-                _camera.RemoveCommandBuffer(OutlineEvent, _commands);
-            _commands.Clear();
-            _commands.Release();
+            // SRP ignores Camera.AddCommandBuffer. Its event callback must be
+            // detached explicitly or it can survive camera/scene changes.
+            if (_srpSubscribed)
+            {
+                RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
+                _srpSubscribed = false;
+            }
+            if (_commands != null)
+            {
+                if (_camera != null && !_usingSrp)
+                    _camera.RemoveCommandBuffer(OutlineEvent, _commands);
+                _commands.Clear();
+                _commands.Release();
+            }
             _commands = null;
             _camera = null;
+            _usingSrp = false;
+            _loggedSrpExecution = false;
             _lastDrawableCount = -1;
         }
 
@@ -107,9 +123,40 @@ namespace StonewardsPartyHUD
             ReleaseMaterials();
         }
 
+        private void OnEndCameraRendering(ScriptableRenderContext context,
+            Camera camera)
+        {
+            if (!_usingSrp || _commands == null ||
+                camera != _camera || _lastDrawableCount <= 0)
+                return;
+
+            try
+            {
+                // CameraEvent buffers do not run in URP/HDRP. Schedule this
+                // buffer inside the active SRP camera context instead.
+                context.ExecuteCommandBuffer(_commands);
+                context.Submit();
+                _lastSrpExecution = Time.unscaledTime;
+                if (!_loggedSrpExecution)
+                {
+                    _loggedSrpExecution = true;
+                    Debug.Log("[Stonewards Party HUD] Safe outline SRP callback " +
+                        "executed on '" + camera.name + "' (" +
+                        _lastDrawableCount + " submeshes).");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[Stonewards Party HUD] Safe outline SRP " +
+                    "render callback failed: " + ex);
+            }
+        }
+
         private bool AttachCamera(Camera camera, Action<string> info)
         {
-            if (camera == _camera && _commands != null)
+            bool srp = GraphicsSettings.currentRenderPipeline != null;
+            if (camera == _camera && _commands != null &&
+                srp == _usingSrp)
                 return true;
 
             DetachCamera();
@@ -117,11 +164,37 @@ namespace StonewardsPartyHUD
                 return false;
 
             _commands = new CommandBuffer { name = "PartyHUD Safe Teammate Outlines" };
-            camera.AddCommandBuffer(OutlineEvent, _commands);
             _camera = camera;
+            _usingSrp = srp;
+            _srpAttachedAt = Time.unscaledTime;
+            _lastSrpExecution = -1f;
+            _nextSrpWarning = Time.unscaledTime + 5f;
+
+            if (srp)
+            {
+                RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
+                _srpSubscribed = true;
+            }
+            else
+            {
+                camera.AddCommandBuffer(OutlineEvent, _commands);
+            }
+
+            string pipeline = srp
+                ? GraphicsSettings.currentRenderPipeline.GetType().Name
+                : "Built-in";
             info("Safe teammate outlines attached to camera '" +
-                camera.name + "' (non-invasive command buffer).");
+                camera.name + "' (pipeline=" + pipeline +
+                ", execution=" + (srp ? "SRP endCameraRendering" :
+                "CameraEvent.AfterForwardAlpha") + ").");
             return true;
+        }
+
+        private struct OutlineDraw
+        {
+            public Renderer Renderer;
+            public Material Fill;
+            public int Submesh;
         }
 
         private static int SubmeshCount(Renderer renderer)
@@ -165,6 +238,15 @@ namespace StonewardsPartyHUD
 
             AttachCamera(camera, info);
             _commands.Clear();
+            if (_usingSrp && !_loggedSrpExecution &&
+                Time.unscaledTime >= _nextSrpWarning)
+            {
+                warning("Safe outline SRP camera callback has not run yet " +
+                    "(camera=" + camera.name + ", pipeline=" +
+                    GraphicsSettings.currentRenderPipeline.GetType().Name +
+                    "). Recording draw passes alone does not mean they rendered.");
+                _nextSrpWarning = Time.unscaledTime + 15f;
+            }
 
             _mask.SetFloat("_ZTest", (float)CompareFunction.Always);
             float fillZ = (float)(throughWalls
@@ -177,6 +259,7 @@ namespace StonewardsPartyHUD
             _downedFill.SetColor("_OutlineColor", new Color(1f, 0.34f, 0.36f, 1f));
 
             int drawn = 0;
+            var draws = new List<OutlineDraw>();
             foreach (var player in roster)
             {
                 if (player == null || player.isLocalPlayer)
@@ -218,21 +301,33 @@ namespace StonewardsPartyHUD
                     int parts = SubmeshCount(renderer);
                     for (int part = 0; part < parts; part++)
                     {
-                        _commands.DrawRenderer(renderer, _mask, part);
-                        _commands.DrawRenderer(renderer, fill, part);
+                        draws.Add(new OutlineDraw
+                        {
+                            Renderer = renderer,
+                            Fill = fill,
+                            Submesh = part
+                        });
                         drawn++;
                     }
                 }
             }
 
+            // Stencil-based QuickOutline requires a complete base silhouette
+            // before any expanded fill pass. Interleaving mask/fill for every
+            // clothing submesh can mask out adjacent parts of the same actor.
+            foreach (var draw in draws)
+                _commands.DrawRenderer(draw.Renderer, _mask, draw.Submesh, 0);
+            foreach (var draw in draws)
+                _commands.DrawRenderer(draw.Renderer, draw.Fill, draw.Submesh, 0);
+
             if (!_reportedReady || drawn != _lastDrawableCount)
             {
                 info("Safe teammate outline render passes: " + drawn +
                     " (camera=" + camera.name + ", throughWalls=" +
-                    throughWalls + ").");
+                    throughWalls + ", pipeline=" + (_usingSrp ? "SRP" : "Built-in") + ").");
                 _reportedReady = true;
-                _lastDrawableCount = drawn;
             }
+            _lastDrawableCount = drawn;
         }
     }
 }

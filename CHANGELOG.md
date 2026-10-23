@@ -5,7 +5,8 @@
 ### Experimental outline rendering
 - Added non-invasive camera-command-buffer rendering for teammate outlines. It uses Stonewards' outline mask/fill shaders without inserting additional materials into a character's own renderers.
 - Defaults to `TeammateOutlines.SafeRendering = true`; legacy `QuickOutline` can be explicitly enabled for comparison through the BepInEx config.
-- This is an unverified fix for intermittent outlines and magenta player skins. Validate in game before publishing 0.5.0.
+- Fixed the mask/fill submission order for multi-submesh teammates and added an SRP camera-render callback for pipelines that do not support Camera.AddCommandBuffer.
+- In-game results remain unverified for the revised path: the first safe-mode attempt avoided magenta skins but produced no visible contours despite recording draw calls. Validate before publishing 0.5.0.
 
 ### Fixed
 - Restored teammate outlines after material-stability gating prevented them from appearing.
