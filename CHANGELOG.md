@@ -2,17 +2,6 @@
 
 ## 0.5.0
 
-### Experimental outline rendering
-- Added non-invasive camera-command-buffer rendering for teammate outlines. It uses Stonewards' outline mask/fill shaders without inserting additional materials into a character's own renderers.
-- Defaults to `TeammateOutlines.SafeRendering = true`; legacy `QuickOutline` can be explicitly enabled for comparison through the BepInEx config.
-- Fixed the mask/fill submission order for multi-submesh teammates and added an SRP camera-render callback for pipelines that do not support Camera.AddCommandBuffer.
-- In-game results remain unverified for the revised path: the first safe-mode attempt avoided magenta skins but produced no visible contours despite recording draw calls. Validate before publishing 0.5.0.
-
-### Fixed
-- Restored teammate outlines after material-stability gating prevented them from appearing.
-- Decoupled teammate nickname labels from outlines, so they stay visible even if QuickOutline cannot initialize.
-- Disable outline components immediately before removing them from teammate meshes.
-
 ### Added
 - Rebuilt the host-only Build Inspector around an inventory-style view with separate **RINGS** and **TOMES** sections.
 - Display upgrade icons, names, levels or stack counts, and cumulative stat modifiers for supported upgrade effects.
