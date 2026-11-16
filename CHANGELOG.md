@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1
+
+### Changed
+- Restored the original 0.5.0 gameplay implementation after unreleased teammate-outline experiments.
+- Refreshed the GitHub and Thunderstore documentation with consistent controls, configuration, and installation guidance.
+
+### Notes
+- No new gameplay features or changes to default settings compared with 0.5.0.
+
 ## 0.5.0
 
 ### Added

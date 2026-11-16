@@ -1,19 +1,19 @@
 # Stonewards PartyHUD
 
-**Keep your party's health, classes, and status in view while playing Stonewards.** PartyHUD adds a compact, game-styled overlay with teammate tracking, extra health information, and host-only tools for checking builds and connection latency.
+**Keep your party's health, classes, and status in view while playing Stonewards.** PartyHUD adds a compact in-game overlay for teammate tracking, extra health indicators, and host-only build and latency information.
 
 ## ✨ Features
 
-- **Party status** — player names, class icons, current/max HP, and downed state in one panel.
-- **Teammate tracking** — optional outlines and floating names, including visibility through walls.
-- **Extra health** — Hunter companion health, defensive wall durability, and King HP when the game exposes it.
-- **Host tools** — inspect teammates' rings and tomes, supported cumulative modifiers, levels or stack counts; see available connection RTT measurements in milliseconds.
-- **In-game settings** — change display options, adjust HUD size and placement, and rebind shortcuts without leaving the game.
-- **Adaptive layout** — resolution-aware scaling, configurable offsets, and a compact interface styled after Stonewards.
+- **Party status** — player names, class icons, current and maximum HP, and downed status in one panel.
+- **Teammate tracking** — optional character outlines and floating nicknames, with an option to show outlines through walls.
+- **Extra health** — Hunter companion HP, defensive wall durability, and King HP when that information is available.
+- **Build inspector** — host-only inventory-style lists of teammates' rings and tomes, including icons, levels or stack counts, and supported cumulative modifiers.
+- **Connection information** — available player latency measurements shown to the host in milliseconds.
+- **In-game customization** — display toggles, HUD placement and scaling, and rebindable keyboard shortcuts.
 
 ## 🎮 How to use
 
-The party panel appears automatically when players are present in a session. It shows information available to your own game client; you do not need the other players to install PartyHUD.
+PartyHUD appears automatically when network players are present. The overlay is local to your game; teammates do not need to install the mod.
 
 ### Controls
 
@@ -25,54 +25,42 @@ The party panel appears automatically when players are present in a session. It 
 | `PageUp` | Show the previous build page |
 | `PageDown` | Show the next build page |
 
-The HUD also includes **SETTINGS** and **BUILDS** shortcuts in its header. They can be clicked when the in-game cursor is already unlocked. The build inspector and per-player ping information are available only to the host.
+The **SETTINGS** and **BUILDS** labels in the HUD header are clickable when the game cursor is already unlocked. Only the session host can inspect teammates' builds or see the host-side connection measurements. Unsupported upgrade modifiers display `—` rather than an estimated value.
 
 ## ⚙️ Configuration
 
 Press `F7` to open the built-in settings menu:
 
-- **DISPLAY** — enable or disable HUD elements, teammate outlines, health indicators, and other display options.
-- **LAYOUT** — adjust panel placement, offsets, and size.
-- **HOTKEYS** — rebind all five shortcuts, including Ctrl, Shift, and Alt combinations; restore the defaults when needed.
+- **DISPLAY** — toggle HUD elements, teammate outlines and names, and extra health indicators.
+- **LAYOUT** — adjust HUD size, anchor, and position.
+- **HOTKEYS** — rebind all five shortcuts, including Ctrl, Shift, and Alt combinations, or restore their defaults.
 
-Settings are saved to the active BepInEx profile. Advanced options can also be edited in `BepInEx/config/community.stonewards.partyhud.cfg`.
+Changes are saved to your current BepInEx profile. Additional options are available in `BepInEx/config/community.stonewards.partyhud.cfg`.
 
-Selected defaults:
-
-| Option | Default |
+| Setting | Default |
 | --- | --- |
 | Panel anchor | Top left |
-| Left and top offsets | 8 pixels each |
+| Left and top offsets | 8 px each |
 | Automatic resolution scaling | Enabled |
-| Companion, wall, and King health | Enabled, when data is available |
-| Teammate outlines and names | Enabled |
-| Through-wall outlines | Enabled |
-
-The HUD hides or yields to supported in-game menus so it does not obstruct normal menu interaction.
+| Companion, wall, and King health | Enabled when data is available |
+| Teammate outlines and floating names | Enabled |
+| Outlines through walls | Enabled |
 
 ## 📦 Installation
 
-Install [PartyHUD on Thunderstore](https://thunderstore.io/c/stonewards/p/thereisnouser/PartyHUD/) using **r2modman** or another compatible mod manager. The manager installs the declared BepInExPack dependency. Launch Stonewards using **Start modded**.
+### Mod manager
 
-Only the player who wants the overlay needs to install it. If you are using a custom development build, disable the published package in that profile to avoid loading two copies of PartyHUD.
+Install [PartyHUD on Thunderstore](https://thunderstore.io/c/stonewards/p/thereisnouser/PartyHUD/) with **r2modman** or another compatible Thunderstore mod manager, then launch Stonewards through **Start modded**. The manager installs the declared **BepInExPack 5** dependency.
 
-## 🔧 Compatibility
-
-- **Game:** Stonewards
-- **Mod loader:** BepInEx 5 (Thunderstore dependency: BepInExPack 5.4.2305)
-- **Multiplayer:** Client-side installation; teammates do not need the mod. Build inspection and per-player RTT are host-only.
-
-## ⚠️ Known limitations
-
-- **King health** is displayed only when the installed game build exposes readable current/max King HP data.
-- **Connection ping** uses measurements available to the host; a value is omitted if the game/network layer does not provide a valid sample.
-- **Build inspection** uses host-side run data; ordinary clients cannot inspect other players' builds. Unknown upgrades appear separately and unsupported/nonlinear modifiers display `—` rather than an estimated value.
+PartyHUD is installed client-side: only players who want its overlay need it. If testing a custom build, disable the published PartyHUD package in that profile to avoid loading duplicate plugins.
 
 ## 🛠️ Development
 
-PartyHUD is a BepInEx 5 plugin targeting `.NET Standard 2.1`. It reads available Stonewards and Mirror multiplayer state to populate the overlay. It does not send additional gameplay network messages or edit player save files. Teammate outlines and the settings menu are drawn locally.
+PartyHUD is a **BepInEx 5** plugin targeting **.NET Standard 2.1**. It reads locally available Stonewards and Mirror multiplayer data to render the HUD and uses the game's `QuickOutline` component for optional teammate outlines.
 
-To build from source, you need Stonewards installed locally, BepInEx 5 in your chosen profile, the .NET SDK, and PowerShell. Clone the repository, open PowerShell in its root, then run:
+### Build from source
+
+You need a local Stonewards installation, the **.NET SDK**, **PowerShell**, and **BepInEx 5** installed in the game directory or your selected mod-manager profile. Close the game, clone the repository, and run this from its root:
 
 ```powershell
 $gameDir = "C:\path\to\Stonewards"
@@ -83,9 +71,7 @@ powershell -ExecutionPolicy Bypass -File .\build-and-install.ps1 `
   -ProfileDir $profileDir
 ```
 
-Replace both example paths with existing directories. You can find the real profile path in r2modman under **Settings → Locations → Browse profile folder**. Close Stonewards before replacing its loaded DLL, and disable the Thunderstore PartyHUD package in your development profile.
-
-For build verification, packaging instructions, and the gameplay test checklist, see [Developer setup](docs/DEVELOPMENT.md).
+Replace the example paths with existing directories. Install BepInExPack in the test profile and disable its published PartyHUD package before installing the development DLL. For package creation and test checks, see [Developer setup](docs/DEVELOPMENT.md).
 
 ## 📄 License
 

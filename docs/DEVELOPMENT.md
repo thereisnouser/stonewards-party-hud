@@ -57,13 +57,13 @@ The packing script creates a ZIP only; it does not publish or tag releases. Thun
 
 ## Current status and in-game menu test checklist
 
-The v0.5.0 source includes an inventory-style host-only Build Inspector and a built-in **F7** settings menu with three tabs: **DISPLAY**, **LAYOUT**, and **HOTKEYS**. Its five shortcuts use BepInEx `KeyboardShortcut` values and are persisted in the active profile config. The user confirmed button functionality, supplied in-game screenshots and approved the native-style slider appearance. **A fresh installation of the packaged release and the full multiplayer checklist remain unverified.** Do not publish the new Thunderstore package based solely on visual approval.
+The v0.5.1 source retains the original v0.5.0 behavior and includes an inventory-style host-only Build Inspector and a built-in **F7** settings menu with three tabs: **DISPLAY**, **LAYOUT**, and **HOTKEYS**. Its five shortcuts use BepInEx `KeyboardShortcut` values and are persisted in the active profile config. The user confirmed button functionality, supplied in-game screenshots and approved the native-style slider appearance. **A fresh installation of the packaged release and the full multiplayer checklist remain unverified.** Do not publish the new Thunderstore package based solely on visual approval.
 
 Use a separate r2modman testing profile with its own BepInExPack and **disable the installed Thunderstore PartyHUD package in that profile**. Build with `-ProfileDir`, then launch that exact profile via **Start modded**. Never test by overwriting the regular playing profile.
 
 ### Required gameplay checks before the next release
 
-- [ ] **Compilation and plugin load:** `dotnet build` succeeds, the script prints the expected DLL SHA256, and `BepInEx/LogOutput.log` contains `Party HUD v0.5.0 initialized.` in the test profile.
+- [ ] **Compilation and plugin load:** `dotnet build` succeeds, the script prints the expected DLL SHA256, and `BepInEx/LogOutput.log` contains `Party HUD v0.5.1 initialized.` in the test profile.
 - [ ] **Menu lifecycle and input:** F7 opens and closes settings; the **X** button closes it; while the menu is open, moving/clicking the mouse and pressing WASD must not aim, attack or move the character. When it closes, gameplay controls and the cursor's previous state return immediately.
 - [ ] **Other game screens:** when opening inventory, shop, character selection, upgrades, quests or loading screens, PartyHUD settings close or stay hidden, and the game keeps control of its own cursor.
 - [ ] **DISPLAY:** each toggle immediately changes the corresponding live behavior and remains saved after restarting the same profile. Hover over both a label and its toggle; its description should appear in the settings footer without overlapping the last row.
@@ -76,6 +76,6 @@ Use a separate r2modman testing profile with its own BepInExPack and **disable t
 - [ ] **Regression:** host-only ring inspector, player health, wall health, teammate outlines, nicknames, Hunter companion and ping still work in a two-player game, and the passive HUD does not intercept mouse input.
 - [ ] **Release:** only after the gameplay checks succeed, build and inspect the matching ZIP and publish the tested version through the authorized Thunderstore account.
 
-The 0.5.0 release integrates the inventory-style Build Inspector and slightly larger item text. The equivalent code was compiled locally as v0.4.2 with zero errors/warnings before this version bump; the v0.5.0 binary must be rebuilt and tested. Gameplay verification and testing the final distributed ZIP are still outstanding. Version 0.4.1 updated documentation/package metadata only.
+The 0.5.1 maintenance release restores the original 0.5.0 gameplay behavior and refreshes release documentation. A fresh 0.5.1 DLL and ZIP must be built and tested in multiplayer before publication. The inventory-style Build Inspector was introduced in 0.5.0.
 
 Legacy verification: earlier playtests established the v0.2.x baseline (HUD and scale/ping behavior). They do **not** establish that every v0.4.0 feature has passed the final release checklist.
